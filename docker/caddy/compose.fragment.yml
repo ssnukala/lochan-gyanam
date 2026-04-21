@@ -1,0 +1,44 @@
+# Caddy reverse-proxy compose fragment — overlay on top of the main
+# compose.yml to terminate TLS at the edge.
+#
+# Usage:
+#   docker compose -f compose.yml -f docker/caddy/compose.fragment.yml up -d
+#
+# Prerequisites:
+#   - DNS A record for lochan.ai resolves to this host
+#   - Ports 80 and 443 are free on the host (stop any other web server)
+#   - ADMIN_EMAIL env var is set (Caddy uses it for Let's Encrypt notices)
+
+services:
+  caddy:
+    image: caddy:2-alpine
+    container_name: lochan-caddy
+    restart: unless-stopped
+    ports:
+      # HTTP (for ACME HTTP-01 challenge + redirect-to-HTTPS)
+      - "80:80"
+      # HTTPS
+      - "443:443"
+      # HTTP/3 over QUIC
+      - "443:443/udp"
+    volumes:
+      - ./docker/caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data        # Let's Encrypt certs + account state
+      - caddy-config:/config    # runtime config cache
+      - ./log/caddy:/var/log/caddy
+    environment:
+      # Caddy reads $ADMIN_EMAIL from this variable at startup.
+      ADMIN_EMAIL: ${ADMIN_EMAIL:-admin@lochan.ai}
+    networks:
+      - app-network
+    # Caddy starts quickly; no depends_on needed. If backend isn't up yet,
+    # Caddy returns 502 until it is — correct behaviour.
+
+volumes:
+  caddy-data:
+    driver: local
+  caddy-config:
+    driver: local
+
+# NOTE: app-network is declared in the main compose.yml. This fragment
+# joins it; it does not redeclare it.

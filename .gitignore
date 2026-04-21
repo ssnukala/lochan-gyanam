@@ -1,0 +1,43 @@
+# Everything else in the gyanam workspace is its own git repo.
+# This bootstrap tracks ONLY docker/, scripts/, repos.json, README.md.
+
+# Child git repos — cloned at deploy time, tracked separately.
+framework/
+tools/
+mandi/
+apps/
+domainpkg/
+extpackages/
+
+# Founder-private scripts (lives in ssnukala/lochan-util, never on servers).
+util/
+
+# Host-writable runtime data.
+apps/*/data/
+apps/*/log/
+data/
+log/
+*.bak
+
+# Secrets & env.
+.env
+.env.*
+*.pem
+*.key
+!.env.example
+
+# Generated indexes.
+mandi/mandi-index.json
+framework/lochan/frontend/src/data/mandi-catalog.json
+
+# IDE / OS droppings.
+.DS_Store
+._*
+.idea/
+.vscode/
+*.swp
+
+# Python / Node ephemera that might show up if anyone runs tools here.
+__pycache__/
+*.pyc
+node_modules/

@@ -1,0 +1,69 @@
+{
+  "_comment": [
+    "Canonical repo list for the Lochan gyanam workspace.",
+    "",
+    "- `framework`: always pulled. Framework code + CLI tooling.",
+    "- `mandi_common`: always pulled. Common packages shared across domains.",
+    "- `mandi_domain`: pulled only when a matching --app is requested.",
+    "",
+    "Each entry maps a relative path under the gyanam workspace to a",
+    "git URL. The deploy script clones into that path on first run and",
+    "`git pull --ff-only` on subsequent runs. Adding a new common repo",
+    "is a one-line PR here; no script change needed."
+  ],
+  "framework": [
+    {
+      "path": "framework/lochan",
+      "url":  "https://github.com/ssnukala/lochan.git",
+      "description": "Framework code — muulam, gyanam, trishul, abhilekh, lighthouse, etc."
+    },
+    {
+      "path": "tools/daksh",
+      "url":  "https://github.com/ssnukala/lochan-daksh.git",
+      "description": "daksh CLI — scaffold, build, evolve, janch, gate"
+    }
+  ],
+  "mandi_common": [
+    { "path": "mandi/common/ankana",   "url": "https://github.com/ssnukala/lochan-ankana.git" },
+    { "path": "mandi/common/chintan",  "url": "https://github.com/ssnukala/lochan-chintan.git" },
+    { "path": "mandi/common/dravya",   "url": "https://github.com/ssnukala/lochan-dravya.git" },
+    { "path": "mandi/common/guna",     "url": "https://github.com/ssnukala/lochan-guna.git" },
+    { "path": "mandi/common/khoj",     "url": "https://github.com/ssnukala/lochan-khoj.git" },
+    { "path": "mandi/common/koshagar", "url": "https://github.com/ssnukala/lochan-koshagar.git" },
+    { "path": "mandi/common/nishchay", "url": "https://github.com/ssnukala/lochan-nishchay.git" },
+    { "path": "mandi/common/prapti",   "url": "https://github.com/ssnukala/lochan-prapti.git" },
+    { "path": "mandi/common/sauda",    "url": "https://github.com/ssnukala/lochan-sauda.git" },
+    { "path": "mandi/common/seva",     "url": "https://github.com/ssnukala/lochan-seva.git" },
+    { "path": "mandi/common/shodh",    "url": "https://github.com/ssnukala/lochan-shodh.git" },
+    { "path": "mandi/common/sulka",    "url": "https://github.com/ssnukala/lochan-sulka.git" },
+    { "path": "mandi/common/vahak",    "url": "https://github.com/ssnukala/lochan-vahak.git" }
+  ],
+  "mandi_domain": [
+    { "path": "mandi/domain/autonex",     "url": "https://github.com/ssnukala/lochan-autonex.git" },
+    { "path": "mandi/domain/bharti",      "url": "https://github.com/ssnukala/lochan-bharti.git" },
+    { "path": "mandi/domain/covera",      "url": "https://github.com/ssnukala/lochan-covera.git" },
+    { "path": "mandi/domain/grahaka",     "url": "https://github.com/ssnukala/lochan-grahaka.git" },
+    { "path": "mandi/domain/lifelight",   "url": "https://github.com/ssnukala/lifelight.git" },
+    { "path": "mandi/domain/longterm",    "url": "https://github.com/ssnukala/lochan-longterm.git" },
+    { "path": "mandi/domain/mediaserver", "url": "https://github.com/ssnukala/lochan-mediaserver.git" },
+    { "path": "mandi/domain/pestpro",     "url": "https://github.com/ssnukala/lochan-pestpro.git" },
+    { "path": "mandi/domain/realtor",     "url": "https://github.com/ssnukala/lochan-lokavit.git" },
+    { "path": "mandi/domain/regsevak",    "url": "https://github.com/ssnukala/lochan-regsevak.git" },
+    { "path": "mandi/domain/vyaparam",    "url": "https://github.com/ssnukala/lochan-vyaparam.git" }
+  ],
+  "app_to_domains": {
+    "_comment": "Which domain repos each app needs. Script pulls only the listed ones.",
+    "fwprod01":    [],
+    "lifestyle01": ["mandi/domain/lifelight"],
+    "longterm01":  ["mandi/domain/longterm"],
+    "grahaka01":   ["mandi/domain/grahaka"],
+    "pestpro01":   ["mandi/domain/pestpro"],
+    "covera01":    ["mandi/domain/covera"],
+    "realtor01":   ["mandi/domain/realtor"],
+    "regsevak01":  ["mandi/domain/regsevak"],
+    "mediaserver01": ["mandi/domain/mediaserver"],
+    "autonex01":   ["mandi/domain/autonex"],
+    "vyaparam01":  ["mandi/domain/vyaparam"],
+    "bharti01":    ["mandi/domain/bharti"]
+  }
+}

@@ -1,0 +1,79 @@
+# Caddy reverse proxy for lochan.ai — Launch 1 TLS terminator.
+#
+# Why Caddy: zero-config Let's Encrypt. Caddy watches the `lochan.ai` label
+# and provisions a cert via ACME HTTP-01 or TLS-ALPN-01 on first request.
+# Renewal is automatic and in-process; no cron, no certbot, no state file
+# other than `caddy_data` (which we mount as a named volume below).
+#
+# Operator prerequisites:
+#   1. DNS A record `lochan.ai -> <deploy-host-IP>` must resolve before the
+#      Caddy container starts or the first ACME challenge will fail.
+#   2. Ports 80 and 443 on the host must be free (no nginx, no apache).
+#   3. ADMIN_EMAIL should be set in env; Caddy uses it for Let's Encrypt
+#      account recovery. Falls back to a non-registered placeholder, which
+#      works but loses account-recovery email notifications.
+#
+# Launch:
+#   docker compose -f compose.yml -f docker/caddy/compose.fragment.yml up -d
+#
+# Validate config locally before deploy:
+#   docker run --rm -v $PWD/docker/caddy:/etc/caddy caddy:2-alpine \
+#     caddy validate --config /etc/caddy/Caddyfile --adapter caddyfile
+
+{
+    # Global options block.
+    # Use the admin email from the environment so we get ACME renewal notices.
+    email {$ADMIN_EMAIL:admin@lochan.ai}
+    # Caddy's admin API on localhost:2019 only — don't expose it.
+    admin localhost:2019
+}
+
+# ── Main site ────────────────────────────────────────────────────────
+lochan.ai, www.lochan.ai {
+    # Proxy everything to the backend service on the compose network.
+    # `backend` resolves inside the compose network to the backend container.
+    reverse_proxy backend:5001 {
+        # Preserve the original Host header so the backend can log it.
+        # X-Forwarded-For / X-Forwarded-Proto are set automatically by
+        # Caddy's reverse_proxy — don't re-set them here (Caddy warns).
+        header_up Host {http.request.host}
+        header_up X-Real-IP {http.request.remote.host}
+    }
+
+    encode zstd gzip
+
+    header {
+        # HSTS: force HTTPS for a year, include subdomains.
+        Strict-Transport-Security "max-age=31536000; includeSubDomains"
+        # Prevent MIME-type sniffing attacks.
+        X-Content-Type-Options "nosniff"
+        # Block clickjacking.
+        X-Frame-Options "DENY"
+        # Don't leak URLs to third-party sites.
+        Referrer-Policy "strict-origin-when-cross-origin"
+        # Minimal permissions-policy — adjust as features are added.
+        Permissions-Policy "geolocation=(), microphone=(), camera=()"
+        # Remove the Server header (operator-preference, purely cosmetic).
+        -Server
+    }
+
+    # Access log. Rotated by Caddy automatically (size-based).
+    log {
+        output file /var/log/caddy/lochan-access.log {
+            roll_size 50MiB
+            roll_keep 10
+        }
+        format json
+    }
+}
+
+# ── Frontend subdomain (optional — uncomment when app frontend has own host) ─
+# app.lochan.ai {
+#     reverse_proxy frontend:3000
+#     encode zstd gzip
+#     header {
+#         Strict-Transport-Security "max-age=31536000; includeSubDomains"
+#         X-Content-Type-Options "nosniff"
+#         X-Frame-Options "DENY"
+#     }
+# }
