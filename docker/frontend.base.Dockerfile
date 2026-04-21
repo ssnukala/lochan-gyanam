@@ -39,11 +39,13 @@ COPY tools/daksh/build/runtime/frontend-entrypoint.sh /app/scripts/
 COPY tools/daksh/daksh/generators/generate-domain-manifest.py /app/scripts/
 RUN chmod +x /app/scripts/frontend-entrypoint.sh
 
-# 4. Framework package configs + locales
+# 4. Framework package configs + locales + framework-tier mandi catalog stub
 COPY tools/daksh/build/runtime/install-frontend-configs.py /tmp/
+COPY tools/daksh/build/runtime/generate-framework-catalog.py /tmp/
 COPY framework/lochan/packages/ /tmp/packages/
 RUN python3 /tmp/install-frontend-configs.py /tmp/packages /app/framework-packages \
-    && rm -rf /tmp/packages /tmp/install-frontend-configs.py
+    && python3 /tmp/generate-framework-catalog.py /tmp/packages /app/src/data/mandi-catalog.json \
+    && rm -rf /tmp/packages /tmp/install-frontend-configs.py /tmp/generate-framework-catalog.py
 
 # 5. Runtime dirs
 RUN mkdir -p /app/log /app/packages
