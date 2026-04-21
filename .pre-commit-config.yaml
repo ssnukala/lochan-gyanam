@@ -1,0 +1,43 @@
+# Workstream D2 — Lochan pre-commit gate.
+#
+# All hooks are `local` so they execute against the developer's own
+# daksh-cli (installed under tools/daksh/). No network fetch, no
+# pinned-version drift — the hooks use whatever daksh the workstation
+# has.
+#
+# Installed by:    daksh setup    (or: pre-commit install)
+# Uninstalled by:  pre-commit uninstall
+#
+# These hooks complement (do not replace) the daksh gate hooks that
+# live directly in each repo's .git/hooks. Keep both:
+#   - pre-commit framework       → gyanam-wide policy (this file)
+#   - daksh gate hooks           → per-repo, per-tier enforcement
+#
+# If you remove a hook here, re-run `daksh setup` to refresh.
+
+repos:
+  - repo: local
+    hooks:
+      - id: daksh-janch-changed
+        name: daksh janch (changed packages only)
+        entry: tools/daksh/daksh-cli janch --changed --ci --threshold 80
+        language: system
+        pass_filenames: false
+        always_run: true
+        description: Run janch on packages touched by this commit.
+
+      - id: daksh-evolve-standard-changed
+        name: daksh evolve --mode standard (changed packages)
+        entry: tools/daksh/daksh-cli evolve --changed --mode standard --ci --threshold 80
+        language: system
+        pass_filenames: false
+        always_run: true
+        description: Run evolve at standard mode on packages touched by this commit.
+
+      - id: no-plaintext-env
+        name: reject tracked .env files
+        entry: bash -c 'if git diff --cached --name-only | grep -qE "(^|/)\.env$"; then echo "ERROR: tracked .env file in staged changes — secrets must go through muulam.secrets"; exit 1; fi'
+        language: system
+        pass_filenames: false
+        always_run: true
+        description: Refuse commits that include a plaintext .env file.

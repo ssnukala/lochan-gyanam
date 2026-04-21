@@ -1,7 +1,15 @@
-# Everything else in the gyanam workspace is its own git repo.
-# This bootstrap tracks ONLY docker/, scripts/, repos.json, README.md.
+# ============================================================================
+# lochan-gyanam — workspace bootstrap .gitignore
+# ============================================================================
+# This repo tracks ONLY docker/, scripts/, repos.json, README.md,
+# .gitignore, .dockerignore, .pre-commit-config.yaml (the workspace-level
+# infrastructure). Everything else in the gyanam working directory is
+# either a separate git repo (ignored here, tracked elsewhere) or
+# workspace-local state (data, logs, caches, secrets, ephemera).
+# ============================================================================
 
-# Child git repos — cloned at deploy time, tracked separately.
+# ── Child git repos ───────────────────────────────────────────────────────
+# Each is its own repo. The deploy script clones them at runtime.
 framework/
 tools/
 mandi/
@@ -9,35 +17,81 @@ apps/
 domainpkg/
 extpackages/
 
-# Founder-private scripts (lives in ssnukala/lochan-util, never on servers).
+# ── Orphan workspace folders (not part of lochan-gyanam) ─────────────────
+# Each of these lives at the gyanam root but isn't this repo's concern.
+# See README for where each one belongs (or is planned to belong).
+books/            # reference data — astrology, NPI, dictionaries, etc.
+patents/          # patent filings (sensitive, immutable filings)
+wrap/             # vardhan wrap sessions (v1..vN)
+context/          # session context (ephemeral)
+names.md          # Sanskrit name registry (lives with framework docs)
+
+# ── Founder-private scripts ──────────────────────────────────────────────
+# Private scripts — lives in ssnukala/lochan-util, never on servers.
 util/
 
-# Host-writable runtime data.
+# ── Secrets — NEVER commit ───────────────────────────────────────────────
+.env
+.env.*
+!.env.example
+!.env.sample
+!.env.migrated
+apps/**/.env
+apps/**/.env.*
+!apps/**/.env.example
+!apps/**/.env.migrated
+**/.env.pre-migration-backup
+
+# ── Keys — never commit private keys under any circumstance ──────────────
+*.priv
+*.pem
+*.key
+keys/*.ed25519.priv
+framework/lochan/keys/*.ed25519.priv
+api-project-*.json        # Google API service-account credentials
+
+# ── Host-writable runtime data ───────────────────────────────────────────
 apps/*/data/
 apps/*/log/
 data/
 log/
+logs/
+*.log
 *.bak
 
-# Secrets & env.
-.env
-.env.*
-*.pem
-*.key
-!.env.example
+# ── Daksh / janch runtime reports (generated, not source) ────────────────
+.daksh/evolve-log.json
+.daksh/cache/
+.janch/
 
-# Generated indexes.
+# ── Generated indexes (rebuild from source) ──────────────────────────────
 mandi/mandi-index.json
 framework/lochan/frontend/src/data/mandi-catalog.json
 
-# IDE / OS droppings.
-.DS_Store
-._*
-.idea/
-.vscode/
-*.swp
-
-# Python / Node ephemera that might show up if anyone runs tools here.
+# ── Python ────────────────────────────────────────────────────────────────
 __pycache__/
 *.pyc
+*.pyo
+*.pyd
+.pytest_cache/
+.coverage
+htmlcov/
+*.egg-info/
+build/
+dist/
+
+# ── Node / Vite ──────────────────────────────────────────────────────────
 node_modules/
+.vite/
+.next/
+
+# ── IDE / OS droppings ───────────────────────────────────────────────────
+.idea/
+.vscode/
+.DS_Store
+._*
+*.swp
+Thumbs.db
+
+# ── MCP workspace config (machine-specific) ──────────────────────────────
+.mcp.json

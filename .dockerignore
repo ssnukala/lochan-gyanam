@@ -1,0 +1,67 @@
+# Docker build context filter — keeps context small when building from gyanam/ root
+# Only include what Dockerfiles actually COPY
+
+# Large directories not needed by any Dockerfile
+books/
+apps/
+wrap/
+extpackages/
+patents/
+util/
+
+# Git
+.git/
+.github/
+
+# Node
+**/node_modules/
+**/.next/
+
+# Python
+**/__pycache__/
+**/*.pyc
+**/*.egg-info/
+**/.venv/
+**/.pytest_cache/
+
+# IDE / OS
+.vscode/
+.idea/
+**/.DS_Store
+
+# Logs and data
+**/log/
+framework/lochan/data/
+
+# Build artifacts (these are what we're eliminating)
+framework/lochan/.build/
+framework/lochan/.build-staging/
+framework/lochan/.daksh/
+framework/lochan/.forge-tmp/
+
+# Test artifacts
+**/htmlcov/
+**/.coverage
+
+# Secrets — defense-in-depth. No current Dockerfile uses `COPY . .`, but
+# operators who fork the templates MUST NOT bake these into an image.
+# Anything that matches these globs will be excluded from every build
+# context rooted at gyanam/. (Release-safe allow-list: .env.example and
+# .env.migrated are placeholders and may be included.)
+**/.env
+**/.env.*
+!**/.env.example
+!**/.env.migrated
+
+# Private keys — never put a signing / encryption key into a layer.
+**/keys/*.priv
+**/*.priv
+**/*.pem
+framework/lochan/keys/publisher.ed25519.priv
+
+# Encrypted backups — produced by util/scripts/backup-encrypted.sh.
+# They don't belong in an image even though they're already encrypted —
+# keeps image size small.
+**/backups/
+**/*.age
+**/*.gpg
