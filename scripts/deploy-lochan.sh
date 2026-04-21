@@ -68,9 +68,64 @@ while (( $# )); do
 done
 
 # ── Dependencies ────────────────────────────────────────────────────────────
-for cmd in git docker jq; do
+for cmd in git docker python3; do
   command -v "$cmd" >/dev/null 2>&1 || { err "missing dependency: $cmd"; exit 1; }
 done
+
+# ── repos.json helpers ──────────────────────────────────────────────────────
+# Python 3 ships json in its stdlib and is already required elsewhere in the
+# gyanam build flow — dropping jq trims one install step on fresh Alpine hosts.
+
+# Emit TSV rows of (path, url) for every entry in the given bucket
+# (framework, mandi_common, mandi_domain). Skips entries without both fields
+# and anything that is not a dict (repos.json uses a _comment array at the
+# top level for docs).
+repos_bucket_tsv() {
+  local bucket="$1"
+  python3 - "$REPOS_JSON" "$bucket" <<'PY'
+import json, sys
+with open(sys.argv[1]) as f:
+    data = json.load(f)
+for entry in data.get(sys.argv[2], []):
+    if not isinstance(entry, dict):
+        continue
+    path = entry.get("path")
+    url = entry.get("url")
+    if path and url:
+        print(f"{path}\t{url}")
+PY
+}
+
+# List domain repo paths for a given app from app_to_domains.
+# Prints one path per line; prints nothing (exit 0) for unknown apps.
+repos_app_domains() {
+  local app="$1"
+  python3 - "$REPOS_JSON" "$app" <<'PY'
+import json, sys
+with open(sys.argv[1]) as f:
+    data = json.load(f)
+for p in data.get("app_to_domains", {}).get(sys.argv[2], []) or []:
+    if isinstance(p, str):
+        print(p)
+PY
+}
+
+# Look up the git URL for a domain path in mandi_domain.
+# Prints the URL (or nothing + exit 0) for the first matching entry.
+repos_domain_url() {
+  local domain_path="$1"
+  python3 - "$REPOS_JSON" "$domain_path" <<'PY'
+import json, sys
+with open(sys.argv[1]) as f:
+    data = json.load(f)
+for entry in data.get("mandi_domain", []):
+    if isinstance(entry, dict) and entry.get("path") == sys.argv[2]:
+        url = entry.get("url", "")
+        if url:
+            print(url)
+        break
+PY
+}
 
 # ── Repo helpers ────────────────────────────────────────────────────────────
 clone_or_pull() {
@@ -104,7 +159,7 @@ pull_bucket() {
     [[ -z "$path" ]] && continue
     clone_or_pull "$path" "$url"
     count=$((count + 1))
-  done < <(jq -r ".${bucket}[] | [.path, .url] | @tsv" "$REPOS_JSON")
+  done < <(repos_bucket_tsv "$bucket")
   log "$bucket: $count repo(s) synced"
 }
 
@@ -118,7 +173,7 @@ if (( PULL )); then
     sect "Phase 1b: Sync domain repos for requested apps"
     local_domains=()
     for app in "${APPS[@]}"; do
-      mapfile -t app_doms < <(jq -r --arg a "$app" '.app_to_domains[$a][]?' "$REPOS_JSON")
+      mapfile -t app_doms < <(repos_app_domains "$app")
       for d in "${app_doms[@]}"; do local_domains+=("$d"); done
     done
     # dedupe
@@ -128,8 +183,8 @@ if (( PULL )); then
       warn "no domain repos needed for requested apps (framework-only)"
     else
       for dom in "${local_domains[@]}"; do
-        url=$(jq -r --arg p "$dom" '.mandi_domain[] | select(.path == $p) | .url' "$REPOS_JSON")
-        [[ -z "$url" || "$url" == "null" ]] && { warn "no url for $dom in repos.json"; continue; }
+        url=$(repos_domain_url "$dom")
+        [[ -z "$url" ]] && { warn "no url for $dom in repos.json"; continue; }
         clone_or_pull "$dom" "$url"
       done
       log "domain repos: ${#local_domains[@]} synced"
