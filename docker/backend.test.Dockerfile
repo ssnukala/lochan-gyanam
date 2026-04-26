@@ -44,7 +44,7 @@
 #
 # Pin policy: refreshed monthly on the 1st via tools/daksh/scripts/refresh-test-pins.sh,
 # cosign-verified in build-sign-images.yml before this Dockerfile is invoked.
-ARG PLAYWRIGHT_DIGEST=sha256:a06d5c1b50b3c5cf4f0e5e5f9a3e9c9d0e2a8f4b6e8c0d2a4b6e8c0d2a4b6e8c
+ARG PLAYWRIGHT_DIGEST=sha256:6bbd515848db4042068571135979b6ee6d330a794b28e037e3a6ccd7f2abfa26
 ARG PLAYWRIGHT_VERSION=1.48.0
 
 # ── Stage 1: Test-toolkit prep ────────────────────────────────────────

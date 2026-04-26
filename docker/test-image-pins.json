@@ -15,7 +15,7 @@
     "image": "mcr.microsoft.com/playwright/python",
     "version": "1.48.0",
     "tag": "v1.48.0-jammy",
-    "digest": "sha256:a06d5c1b50b3c5cf4f0e5e5f9a3e9c9d0e2a8f4b6e8c0d2a4b6e8c0d2a4b6e8c",
+    "digest": "sha256:6bbd515848db4042068571135979b6ee6d330a794b28e037e3a6ccd7f2abfa26",
     "cosign_verified": true,
     "cosign_oidc_issuer": "https://token.actions.githubusercontent.com",
     "last_refreshed": "2026-04-26",
