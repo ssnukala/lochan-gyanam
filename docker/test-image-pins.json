@@ -1,0 +1,42 @@
+{
+  "_doc": [
+    "Single source of truth for digest-pinned upstream images used by the",
+    "Lochan test image chain (lochan-test-base + lochan-fwtest-base).",
+    "Refresh policy: monthly on the 1st via",
+    "tools/daksh/scripts/refresh-test-pins.sh; cosign-verified in CI before",
+    "the Dockerfiles are invoked (Security Gate 1).",
+    "",
+    "If you bump a digest here, also bump the matching ARG default in:",
+    "  - docker/backend.test.Dockerfile",
+    "  - docker/backend.fwtest.Dockerfile",
+    "Both paths are kept consistent by the refresh script."
+  ],
+  "playwright": {
+    "image": "mcr.microsoft.com/playwright/python",
+    "version": "1.48.0",
+    "tag": "v1.48.0-jammy",
+    "digest": "sha256:a06d5c1b50b3c5cf4f0e5e5f9a3e9c9d0e2a8f4b6e8c0d2a4b6e8c0d2a4b6e8c",
+    "cosign_verified": true,
+    "cosign_oidc_issuer": "https://token.actions.githubusercontent.com",
+    "last_refreshed": "2026-04-26",
+    "pinned_for_decision": "decision-5-2026-04-26"
+  },
+  "python_packages": {
+    "pytest": "8.3.3",
+    "pytest-xdist": "3.6.1",
+    "pytest-asyncio": "0.24.0",
+    "pluggy": "1.5.0",
+    "playwright": "1.48.0",
+    "httpx": "0.27.2",
+    "aiosqlite": "0.20.0"
+  },
+  "node_packages": {
+    "vitest": "2.1.4",
+    "happy-dom": "15.7.4",
+    "jsdom": "25.0.1",
+    "msw": "2.4.9",
+    "axe-core": "4.10.0",
+    "@vitest/coverage-v8": "2.1.4",
+    "@playwright/test": "1.48.0"
+  }
+}
