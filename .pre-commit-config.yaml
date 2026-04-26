@@ -36,8 +36,40 @@ repos:
 
       - id: no-plaintext-env
         name: reject tracked .env files
-        entry: bash -c 'if git diff --cached --name-only | grep -qE "(^|/)\.env$"; then echo "ERROR: tracked .env file in staged changes — secrets must go through muulam.secrets"; exit 1; fi'
+        entry: tools/daksh/scripts/precommit-no-plaintext-env.sh
         language: system
         pass_filenames: false
         always_run: true
         description: Refuse commits that include a plaintext .env file.
+
+      # Incident 2026-04-26: parent session's `git checkout -f main` silently
+      # discarded a parallel Drasta session's uncommitted production-file
+      # edits. This hook reads `.daksh/in-flight/<session-id>.json` sentinels
+      # and BLOCKS commits that touch files actively in flight in ANOTHER
+      # session. Sessions register in-flight state via `daksh session-start`.
+      # Stale sentinels (>4h heartbeat) warn; very stale (>24h) ignored.
+      - id: parallel-session-check
+        name: block commits overlapping parallel-session in-flight files
+        entry: tools/daksh/scripts/precommit-parallel-session-check.py
+        language: system
+        pass_filenames: false
+        always_run: true
+        description: |
+          Read `.daksh/in-flight/*.json` sentinels and refuse commits whose
+          staged files conflict with another session's actively-modified
+          files. Prevents the silent-overwrite failure mode that lost
+          ~640 LOC of Drasta-session work on 2026-04-26.
+
+      # Per rupayan-v2-autowire-2026-04-25 §3 (DevOps D-2): the autowire
+      # codegen artifacts under framework/lochan/frontend/src/__generated__
+      # must stay in sync with the source tree. We re-run the full
+      # autowire pipeline, then `git diff --exit-code` over the
+      # __generated__ dir + docs/schema/frontend/v2.json. Any diff = the
+      # commit's frontend changes haven't been re-autowired; abort.
+      - id: daksh-autowire-frontend
+        name: daksh autowire --frontend (regenerate + verify clean)
+        entry: tools/daksh/scripts/precommit-autowire-frontend.sh
+        language: system
+        pass_filenames: false
+        always_run: true
+        description: Re-run frontend autowire and fail if any committed artifact drifted.
