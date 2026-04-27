@@ -1,0 +1,42 @@
+# compose.test.yml — Opt-in test chain (Decision #5, WG-A4)
+#
+# Founder rule (2026-04-26): "the production build does not carry the test
+# package overheads." This file is the explicit opt-in: passing
+# `--profile test` or `-f compose.yml -f compose.test.yml` switches the
+# backend service from lochan-backend-base to lochan-test-base.
+#
+# Default `docker compose up` (no profile, no override) keeps the prod chain
+# clean: lochan-backend-base → <app>-deps → <app>-backend, no test packages.
+#
+# Three hard rules from Decision #5:
+#   1. Prod chain never imports test packages — enforced by separate image
+#      ancestry (test-base sits SIBLING to backend-base on top of deps-backend,
+#      not BELOW it).
+#   2. Test chain is opt-in via target=test (this file is the opt-in switch).
+#   3. fwtest is dev-only, never CI — fwtest-base does not appear in this
+#      file; CI uses test-base only.
+#
+# Usage:
+#   docker compose -f compose.yml -f /path/to/docker/compose.test.yml --profile test up
+#   # or via the daksh helper:
+#   daksh test --backend <app>
+
+services:
+  backend:
+    # Switch backend to the test substrate. Compose target=test is the
+    # acceptance-test contract that verify_compose_target_isolation reads.
+    image: lochan-test-base:latest
+    profiles: [test]
+    build:
+      target: test
+    environment:
+      - LOCHAN_TEST_MODE=ci
+      - CI=true
+      # Disable HMR — test chain is locked-bundle, deterministic.
+      - PYTHONDONTWRITEBYTECODE=1
+    # Override the prod CMD with a test invocation; per-app compose.test.yml
+    # overrides this further with `pytest -m smoke`, etc.
+    command: ["pytest", "--tb=short", "-q"]
+
+  # No `frontend` override here — frontend runs vitest in-place via
+  # the same lochan-test-base image (Node 22 + Vitest bundle baked in).
