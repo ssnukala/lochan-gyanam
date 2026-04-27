@@ -73,3 +73,21 @@ repos:
         pass_filenames: false
         always_run: true
         description: Re-run frontend autowire and fail if any committed artifact drifted.
+
+      # Layer 1 emission target (founder rule 2026-04-26): janch tests are
+      # framework-level autowire artifacts at framework/lochan/tests/autowired/.
+      # Re-run janch.framework_emitter and `git diff --exit-code` over that
+      # directory. Any diff = the commit's package code changed without
+      # regenerating the autowire artifacts; abort.
+      #
+      # Companion to daksh-autowire-frontend above — same pattern, sixth
+      # target surface of the autowire primitive (after checks Phase 0-3,
+      # scaffold Phase 4, tests Phase 5a, docs ext #1, Drasta consumption
+      # ext #2 — now janch-tests autowire ext #3).
+      - id: daksh-autowire-janch-stale
+        name: daksh autowire janch tests (regenerate + verify clean)
+        entry: tools/daksh/scripts/precommit-autowire-janch-stale.sh
+        language: system
+        pass_filenames: false
+        always_run: true
+        description: Re-run framework janch autowire and fail if artifacts drifted.
