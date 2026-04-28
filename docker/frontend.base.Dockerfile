@@ -28,11 +28,20 @@ LABEL org.opencontainers.image.licenses="MIT"
 # 1. Framework frontend source (deps already installed in Tier 0)
 COPY framework/lochan/frontend/ .
 
-# 2. abhilekh-react source for Vite alias + type-checking, templates, roop, rupayan
+# 2. abhilekh-react source for Vite alias + type-checking, templates, roop, rupayan,
+#    plus the rest of muulam's frontend tree (relocated from framework SPA src/ during
+#    the empty-room refactor — see vite.config.ts aliases for @/app, @/lib, @/components,
+#    @/providers, @/types, @/hooks).
 COPY framework/lochan/packages/abhilekh/frontend/src /app/abhilekh-react-src/src
 COPY framework/lochan/packages/muulam/frontend/templates /app/lochan-templates-src
 COPY framework/lochan/packages/muulam/frontend/roop /app/roop-src
 COPY framework/lochan/packages/muulam/frontend/rupayan /app/rupayan-src
+COPY framework/lochan/packages/muulam/frontend/app /app/app-src
+COPY framework/lochan/packages/muulam/frontend/lib /app/lib-src
+COPY framework/lochan/packages/muulam/frontend/components /app/components-src
+COPY framework/lochan/packages/muulam/frontend/providers /app/providers-src
+COPY framework/lochan/packages/muulam/frontend/types /app/types-src
+COPY framework/lochan/packages/muulam/frontend/hooks /app/hooks-src
 
 # 3. Scripts (direct from daksh tool — no staging)
 COPY tools/daksh/build/runtime/frontend-entrypoint.sh /app/scripts/
