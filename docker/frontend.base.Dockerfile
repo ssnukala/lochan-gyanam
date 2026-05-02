@@ -25,23 +25,21 @@ LABEL org.opencontainers.image.description="Lochan — AI-agent framework where 
 LABEL org.opencontainers.image.vendor="Lochan"
 LABEL org.opencontainers.image.licenses="MIT"
 
-# 1. Framework frontend source (deps already installed in Tier 0)
-COPY framework/lochan/frontend/ .
+# 1. Framework frontend source — Phase 5 of spicy-drifting-muffin:
+# we copy the SPA's frontend/ AND the workspace member packages so pnpm's
+# symlink resolution (already populated in Tier 0 deps image) finds them
+# at /app/packages/<name>/frontend/. The vendor-copy hacks (abhilekh-react-src,
+# lochan-templates-src, roop-src, rupayan-src, app-src, lib-src, components-src,
+# providers-src, types-src, hooks-src) DELETED — workspace symlinks replace
+# them. See vite.config.ts: customResolver no longer checks `*-src` paths.
+COPY framework/lochan/frontend/ ./frontend/
+COPY framework/lochan/packages/ ./packages/
 
-# 2. abhilekh-react source for Vite alias + type-checking, templates, roop, rupayan,
-#    plus the rest of muulam's frontend tree (relocated from framework SPA src/ during
-#    the empty-room refactor — see vite.config.ts aliases for @/app, @/lib, @/components,
-#    @/providers, @/types, @/hooks).
-COPY framework/lochan/packages/abhilekh/frontend/src /app/abhilekh-react-src/src
-COPY framework/lochan/packages/muulam/frontend/templates /app/lochan-templates-src
-COPY framework/lochan/packages/muulam/frontend/roop /app/roop-src
-COPY framework/lochan/packages/muulam/frontend/rupayan /app/rupayan-src
-COPY framework/lochan/packages/muulam/frontend/app /app/app-src
-COPY framework/lochan/packages/muulam/frontend/lib /app/lib-src
-COPY framework/lochan/packages/muulam/frontend/components /app/components-src
-COPY framework/lochan/packages/muulam/frontend/providers /app/providers-src
-COPY framework/lochan/packages/muulam/frontend/types /app/types-src
-COPY framework/lochan/packages/muulam/frontend/hooks /app/hooks-src
+# pnpm install in Tier 0 created node_modules with symlinks to the
+# workspace package.json files. Re-run `pnpm install --offline` here to
+# wire the now-present workspace SOURCE into the existing node_modules
+# symlinks (no network; just metadata reconciliation).
+RUN pnpm install --frozen-lockfile --offline
 
 # 3. Scripts (direct from daksh tool — no staging)
 COPY tools/daksh/build/runtime/frontend-entrypoint.sh /app/scripts/
@@ -61,13 +59,16 @@ RUN mkdir -p /app/log /app/packages
 
 EXPOSE 3000
 ENTRYPOINT ["sh", "/app/scripts/frontend-entrypoint.sh"]
-CMD ["npm", "run", "dev"]
+CMD ["pnpm", "run", "dev"]
 
 # ── Prod base: same as dev, used for vite build stage ────────────────
 FROM dev AS prod
 
 # ── Test runner: Debian-based with Playwright + bundled browser ──────
 FROM node:22-bookworm-slim AS test
+
+# Phase 5: install pnpm in test runner base (matches dev stage tooling).
+RUN npm install -g pnpm@10
 
 WORKDIR /app
 
@@ -90,9 +91,13 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 COPY --from=dev /app /app
-COPY --from=dev /abhilekh-react /abhilekh-react
 
-RUN npm install --save-dev @playwright/test && \
+# Phase 5: dropped `COPY --from=dev /abhilekh-react /abhilekh-react`
+# (vendor copy from old dev stage; no longer exists post-Phase 3).
+# Workspace symlinks inside /app/node_modules/abhilekh-react point at
+# /app/packages/abhilekh/frontend/ directly, copied via the COPY above.
+
+RUN pnpm add -D @playwright/test && \
     npx playwright install chromium && \
     npx playwright install-deps chromium
 
@@ -100,4 +105,4 @@ RUN mkdir -p /app/log /app/packages /tmp/pw-auth
 
 EXPOSE 3000
 ENTRYPOINT ["sh", "/app/scripts/frontend-entrypoint.sh"]
-CMD ["npm", "run", "dev"]
+CMD ["pnpm", "run", "dev"]

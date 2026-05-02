@@ -4,6 +4,11 @@
 # Contains: Python 3.13 + ALL pip dependencies for framework + domain packages.
 # Does NOT contain: build tools, framework source, or daksh dev deps.
 #
+# Phase 5 of `claude/daksh/plans/spicy-drifting-muffin-2026-05-01.md`:
+# uses `uv pip install` (drop-in pip replacement, 10-100× faster) instead of
+# plain pip. The extract-all-deps.py flow is unchanged — combined deps still
+# flow through the same merge step; just install is faster.
+#
 # Rebuild: Only when dependencies change (requirements.txt, pyproject.toml).
 # Frequency: Weekly/monthly. Push to registry for fast pulls.
 #
@@ -21,6 +26,10 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     gcc g++ git \
     && rm -rf /var/lib/apt/lists/*
 
+# Install uv (Astral) — drop-in pip replacement, 10-100× faster.
+# Per Phase 5 of spicy-drifting-muffin packaging refactor.
+COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /usr/local/bin/
+
 WORKDIR /build
 
 # Copy everything needed for dependency extraction (direct from monorepo)
@@ -29,14 +38,14 @@ COPY framework/lochan/backend/requirements.txt /build/backend/
 COPY framework/lochan/packages/ /build/packages/
 COPY tools/daksh/pyproject.toml /build/.daksh/pyproject.toml
 
-# Generate combined deps file and install everything.
-# BuildKit cache mount on /root/.cache/pip: wheels persist across rebuilds so
+# Generate combined deps file and install everything via uv.
+# BuildKit cache mount on /root/.cache/uv: wheels persist across rebuilds so
 # only changed deps redownload. Zero image-size impact (mount is host-side).
-RUN --mount=type=cache,target=/root/.cache/pip,sharing=locked \
+RUN --mount=type=cache,target=/root/.cache/uv,sharing=locked \
     python3 extract-all-deps.py /build > /build/all-deps.txt \
-    && echo "=== Installing $(wc -l < /build/all-deps.txt) dependencies ===" \
+    && echo "=== Installing $(wc -l < /build/all-deps.txt) dependencies via uv ===" \
     && cat /build/all-deps.txt \
-    && pip install -r /build/all-deps.txt
+    && uv pip install --system -r /build/all-deps.txt
 
 # Strip bloat before copying to runtime stage
 RUN find /usr/local/lib/python3.13/site-packages \
@@ -58,6 +67,11 @@ RUN find /usr/local/lib/python3.13/site-packages \
 
 # -- Stage 2: Clean runtime (no gcc, no git, no build artifacts) -------
 FROM python:3.13-slim
+
+# Install uv in runtime too (Tier 1 backend.base.Dockerfile builder uses
+# `uv pip install --no-deps daksh/`). ~10MB; saves much more in Tier 1
+# build-time speed.
+COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /usr/local/bin/
 
 COPY --from=builder /usr/local/lib/python3.13/site-packages /usr/local/lib/python3.13/site-packages
 COPY --from=builder /usr/local/bin /usr/local/bin
