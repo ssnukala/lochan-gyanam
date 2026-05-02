@@ -59,7 +59,12 @@ RUN mkdir -p /app/log /app/packages
 
 EXPOSE 3000
 ENTRYPOINT ["sh", "/app/scripts/frontend-entrypoint.sh"]
-CMD ["pnpm", "run", "dev"]
+# `pnpm run dev` from /app fails: workspace root has no `dev` script (the
+# script lives in the `frontend/` workspace member's package.json). Use
+# `pnpm --filter frontend run dev` so vite starts from the correct member
+# regardless of cwd. The framework's own `frontend-entrypoint.sh` exec's
+# this command after its widget integration phase; it ends with cwd at /app.
+CMD ["pnpm", "--filter", "frontend", "run", "dev"]
 
 # ── Prod base: same as dev, used for vite build stage ────────────────
 FROM dev AS prod
@@ -105,4 +110,9 @@ RUN mkdir -p /app/log /app/packages /tmp/pw-auth
 
 EXPOSE 3000
 ENTRYPOINT ["sh", "/app/scripts/frontend-entrypoint.sh"]
-CMD ["pnpm", "run", "dev"]
+# `pnpm run dev` from /app fails: workspace root has no `dev` script (the
+# script lives in the `frontend/` workspace member's package.json). Use
+# `pnpm --filter frontend run dev` so vite starts from the correct member
+# regardless of cwd. The framework's own `frontend-entrypoint.sh` exec's
+# this command after its widget integration phase; it ends with cwd at /app.
+CMD ["pnpm", "--filter", "frontend", "run", "dev"]
