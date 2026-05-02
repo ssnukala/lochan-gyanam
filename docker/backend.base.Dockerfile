@@ -22,9 +22,11 @@ COPY tools/daksh/build/runtime/install-framework-packages.py /build/install-fram
 COPY framework/lochan/packages/ /build/packages/
 RUN python3 /build/install-framework-packages.py /build/packages --install
 
-# 2. Daksh toolkit — deps pre-installed in Tier 0, just register
+# 2. Daksh toolkit — deps pre-installed in Tier 0, just register.
+# Phase 5 (spicy-drifting-muffin packaging refactor): uv pip install
+# (drop-in pip replacement, faster). uv comes from lochan-deps-backend.
 COPY tools/daksh/ /build/daksh/
-RUN pip install --no-deps --no-cache-dir /build/daksh/
+RUN uv pip install --system --no-deps --no-cache /build/daksh/
 
 # Strip bytecode, test suites, docs, and examples from ALL site-packages.
 # This also strips pip's own __pycache__ inherited from python:3.13-slim base —
