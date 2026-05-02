@@ -98,6 +98,11 @@ COPY framework/lochan/backend/src /app/src
 COPY framework/lochan/lochan.json /app/lochan.json
 COPY framework/lochan/backend/alembic* /app/
 
+# 3b. Framework data files (patent-coverage-status.json drives the FP11 60s
+# demo aggregator + claim matrix; muulam.api.patent_coverage walks up from
+# its own __file__ looking for a sibling `data/` dir).
+COPY framework/lochan/data /app/data
+
 # 4. Helper scripts
 COPY tools/daksh/build/runtime/install-packages.py /app/scripts/
 COPY tools/daksh/build/runtime/install-domain-packages.py /app/scripts/
