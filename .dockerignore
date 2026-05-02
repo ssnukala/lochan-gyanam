@@ -29,9 +29,12 @@ util/
 .idea/
 **/.DS_Store
 
-# Logs and data
+# Logs and runtime data
 **/log/
-framework/lochan/data/
+# NOTE: framework/lochan/data/ is intentionally NOT excluded — it holds the
+# patent-coverage-status.json claim matrix (Sweep A10 / FP11 60s demo) that
+# muulam.api.patent_coverage reads at runtime. The .json files here are
+# STATIC manifests (checked into git), not runtime DB/log artifacts.
 
 # Build artifacts (these are what we're eliminating)
 framework/lochan/.build/
