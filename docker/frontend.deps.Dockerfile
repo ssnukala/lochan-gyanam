@@ -32,7 +32,7 @@ WORKDIR /app
 #
 # We copy package.json files only (not source) at this Tier 0 layer so the
 # image rebuilds only when lockfile or any package.json changes.
-COPY framework/lochan/package.json framework/lochan/pnpm-workspace.yaml framework/lochan/pnpm-lock.yaml ./
+COPY framework/lochan/package.json framework/lochan/pnpm-workspace.yaml framework/lochan/pnpm-lock.yaml framework/lochan/.npmrc ./
 COPY framework/lochan/frontend/package.json ./frontend/
 COPY framework/lochan/packages/abhilekh/frontend/package.json ./packages/abhilekh/frontend/
 COPY framework/lochan/packages/duta/frontend/package.json ./packages/duta/frontend/
