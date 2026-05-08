@@ -24,7 +24,6 @@ books/            # reference data — astrology, NPI, dictionaries, etc.
 patents/          # patent filings (sensitive, immutable filings)
 wrap/             # vardhan wrap sessions (v1..vN)
 context/          # session context (ephemeral)
-names.md          # Sanskrit name registry (lives with framework docs)
 
 # ── Founder-private scripts ──────────────────────────────────────────────
 # Private scripts — lives in ssnukala/lochan-util, never on servers.
