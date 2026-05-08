@@ -41,7 +41,7 @@ Use this section as source of truth. Some legacy sections below are historical.
 
 ### Current Common Packages (`mandi/common/`)
 
-- `ankana`, `chintan`, `dravya`, `guna`, `khoj`, `koshagar`, `nishchay`, `prapti`, `sauda`, `seva`, `shodh`, `sulka`, `vahak`
+- `ankana`, `chintan`, `dravya`, `guna`, `khoj`, `koshagar`, `lekh` (NEW 2026-05-08, AI-agent-first marketing), `nishchay`, `prapti`, `sauda`, `seva`, `shodh`, `sulka`, `vahak`
 
 ### Current Domain Packages (`mandi/domain/`)
 
@@ -150,6 +150,7 @@ Use this section as source of truth. Some legacy sections below are historical.
 | **Nishchay** | निश्चय | Certainty, determination | N(5)+I(1)+S(3)+H(5)+C(3)+H(5)+A(1)+Y(1)=24→**6** | Credential lifecycle |
 | **Bharti** | भर्ती | Enrollment, admission, recruitment | B(2)+H(5)+A(1)+R(2)+T(4)+I(1)=15→**6** | Reusable enrollment/registration engine (extracted from regsevak) |
 | **Chintan** | चिन्तन | Contemplation, thinking | C(3)+H(5)+I(1)+N(5)+T(4)+A(1)+N(5)=24→**6** | Training & CE tracking |
+| **Lekh** | लेख | Writing, inscription, document, message | L(3)+E(5)+K(2)+H(5)=15→**6** | AI-agent-first marketing (scaffolded 2026-05-08; replaces duta marketing scaffolding; pairs with duta as Lekh-composes / Duta-carries) |
 | **Sauda** | सौदा | Deal, transaction, bargain | S(3)+A(1)+U(6)+D(4)+A(1)=15→**6** | Sales Pipeline — leads, quotes, opportunities |
 | **Seva** | सेवा | Service, devotion | S(3)+E(5)+V(6)+A(1)=15→**6** | Service Ops — work orders, scheduling, dispatch |
 | **Sulka** | शुल्क | Fee, toll, charge | S(3)+U(6)+L(3)+K(2)+A(1)=15→**6** | Billing — invoicing, payments, refunds |
@@ -160,7 +161,7 @@ Use this section as source of truth. Some legacy sections below are historical.
 | Name | Sanskrit | Meaning | Chaldean Calc | Package |
 |------|----------|---------|---------------|---------|
 | **Grahaka** | ग्राहक | Customer, client | G(3)+R(2)+A(1)+H(5)+A(1)+K(2)+A(1)=15→**6** | AI-first agentic CRM |
-| **Duta** | दूत | Messenger, ambassador | D(4)+U(6)+T(4)+A(1)=15→**6** | CRM marketing / integrations |
+| **Duta** | दूत | Messenger, ambassador | D(4)+U(6)+T(4)+A(1)=15→**6** | Agent protocol — signing, trust zones, A2A transport (marketing role moved to Lekh 2026-05-08) |
 | **Viniyog** | विनियोग | Allocation, assignment | V(6)+I(1)+N(5)+I(1)+Y(1)+O(7)+G(3)=24→**6** | Resource allocation engine (framework) |
 | **Vyaparam** | व्यापारम् | Commerce, business | V(6)+Y(1)+A(1)+P(8)+A(1)+R(2)+A(1)+M(4)=24→**6** | Commerce & payments (domain) |
 | **Lokavit** | लोकवित् | Knower of realms | L(3)+O(7)+K(2)+A(1)+V(6)+I(1)+T(4)=24→**6** | Real estate CMA/MLS |
