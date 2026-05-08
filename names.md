@@ -258,6 +258,62 @@ Identified from wrap target analysis. Needed for 85-90% entity coverage across w
 | **Koshagar** | कोशागार | Treasury keeper, procurer | K(2)+O(7)+S(3)+H(5)+A(1)+G(3)+A(1)+R(2)=24→**6** | BUY — vendors, POs, procurement, receiving |
 | **Vahak** | वाहक | Carrier, transporter | V(6)+A(1)+H(5)+A(1)+K(2)=15→**6** | MOVE — shipments, fulfillment, carriers, tracking |
 
+## NAMED BUT NOT YET BUILT — Marketing / Outreach / Generic (2026-05-08)
+
+Computed during the marketing-package naming session (duta-marketing split: duta returns to protocol-only; marketing needs a new home). All entries verified Chaldean = 6.
+
+### Strong fit for marketing / outreach / announcement
+
+| Name | Sanskrit | Meaning | Chaldean Calc | Notes |
+|------|----------|---------|---------------|-------|
+| **Khyaapan** | ख्यापन | Announcement, proclamation, making known | K(2)+H(5)+Y(1)+A(1)+A(1)+P(8)+A(1)+N(5)=24→**6** | Strongest semantic match — "the act of making known." Pairs with Duta (compose→carry) |
+| **Lekh** | लेख | Writing, inscription, document, message | L(3)+E(5)+K(2)+H(5)=15→**6** | **CHOSEN 2026-05-08** for the marketing package (replaces duta's marketing scaffolding; pairs with Duta as Lekh-composes / Duta-carries). Sibling root √लिख् with Abhilekh. See RESERVED section below. |
+| **Aamantran** | आमंत्रण | Invitation | A(1)+A(1)+M(4)+A(1)+N(5)+T(4)+R(2)+A(1)+N(5)=24→**6** | Fits agent-first paradigm — invite agents to engage |
+| **Stava** | स्तव | Praise, hymn, eulogy | S(3)+T(4)+A(1)+V(6)+A(1)=15→**6** | Marketing as praise; slightly archaic feel |
+| **Khyaati** | ख्याति | Fame, reputation | K(2)+H(5)+Y(1)+A(1)+A(1)+T(4)+I(1)=15→**6** | Brand-building flavor |
+| **Prerana** | प्रेरणा | Inspiration, motivation | P(8)+R(2)+E(5)+R(2)+A(1)+N(5)+A(1)=24→**6** | Motivational marketing framing |
+| **Sansar** | संसार | World, all-pervading | S(3)+A(1)+N(5)+S(3)+A(1)+R(2)=15→**6** | "Reach the world" framing |
+
+### Available — weaker fit but valid (noted for future slots)
+
+| Name | Sanskrit | Meaning | Chaldean Calc | Notes |
+|------|----------|---------|---------------|-------|
+| **Dhama** | धाम | Abode, glory, splendor | D(4)+H(5)+A(1)+M(4)+A(1)=15→**6** | More "abode" than outreach |
+| **Varna** | वर्ण | Color, description, depiction | V(6)+A(1)+R(2)+N(5)+A(1)=15→**6** | **CAUTION:** also means caste — loaded connotation |
+| **Vyakta** | व्यक्त | Manifest, expressed | V(6)+Y(1)+A(1)+K(2)+T(4)+A(1)=15→**6** | **CAUTION:** semantic conflict with Vyakti (व्यक्ति) — already in use as `vyakti.*` namespace |
+
+### Short generic Sanskrit roots (3 letters, Chaldean 6)
+
+Catalogued for completeness — wrong category for marketing, but available for other slots if a 3-letter name is ever needed:
+
+| Name | Sanskrit | Meaning | Chaldean Calc | Notes |
+|------|----------|---------|---------------|-------|
+| **Mod** | मोद | Joy, pleasure | M(4)+O(7)+D(4)=15→**6** | 3 letters — shortest possible Chaldean-6 Sanskrit |
+| **Lab** | लाभ | Profit, gain | L(3)+A(1)+B(2)=**6** | 3 letters; commercial/transactional |
+| **Bal** | बल | Strength, power | B(2)+A(1)+L(3)=**6** | 3 letters; force/strength flavor |
+| **Kal** | काल | Time, death | K(2)+A(1)+L(3)=**6** | 3 letters; **CAUTION** — काल also means death/Yama |
+
+### General-purpose Sanskrit Chaldean-6 names (action / quality / lifecycle)
+
+Additional verified candidates from broader semantic scan — available for any future package, sub-system, or capability slot.
+
+| Name | Sanskrit | Meaning | Chaldean Calc | Best fit |
+|------|----------|---------|---------------|----------|
+| **Jaagaran** | जागरण | Awakening, vigilance, watchfulness | J(1)+A(1)+A(1)+G(3)+A(1)+R(2)+A(1)+N(5)=15→**6** | Monitoring / alerting / wake-up service |
+| **Arambh** | आरंभ | Commencement, beginning, initiation | A(1)+R(2)+A(1)+M(4)+B(2)+H(5)=15→**6** | Bootstrap / initialization / scaffold-start |
+| **Nirnay** | निर्णय | Decision, judgment, conclusion | N(5)+I(1)+R(2)+N(5)+A(1)+Y(1)=15→**6** | Decision engine / verdict resolver |
+| **Adhyas** | अध्यास | Super-imposition (Vedanta term) — layered overlay | A(1)+D(4)+H(5)+Y(1)+A(1)+S(3)=15→**6** | Overlay / persona-overlay / layering primitive |
+| **Akhyan** | आख्यान | Narrative, story, account | A(1)+K(2)+H(5)+Y(1)+A(1)+N(5)=15→**6** | Storytelling / narration service / case-history |
+| **Posha** | पोष | Nourishment, sustenance, care | P(8)+O(7)+S(3)+H(5)+A(1)=24→**6** | Nurturing / sustainability / customer-success |
+| **Spasht** | स्पष्ट | Clear, explicit, evident | S(3)+P(8)+A(1)+S(3)+H(5)+T(4)=24→**6** | Transparency / clarity / explainability |
+| **Vinaya** | विनय | Humility, modesty, discipline | V(6)+I(1)+N(5)+A(1)+Y(1)+A(1)=15→**6** | Discipline / governance / modest-defaults |
+| **Sadhya** | साध्य | Achievable goal, what ought to be done | S(3)+A(1)+D(4)+H(5)+Y(1)+A(1)=15→**6** | Goals / OKRs / target-state planner |
+| **Antim** | अंतिम | Final, ultimate, last | A(1)+N(5)+T(4)+I(1)+M(4)=15→**6** | Terminal state / finalize / commit-stage |
+| **Nivritti** | निवृत्ति | Cessation, withdrawal, retirement | N(5)+I(1)+V(6)+R(2)+I(1)+T(4)+T(4)+I(1)=24→**6** | Deprecation / retirement / sunset |
+| **Aastha** | आस्था | Faith, conviction, trust | A(1)+A(1)+S(3)+T(4)+H(5)+A(1)=15→**6** | Trust / credibility / reputation system |
+| **Kalpa** | कल्प | Era, eon, ritual procedure | K(2)+A(1)+L(3)+P(8)+A(1)=15→**6** | **CAUTION** — Hindu-cosmology timing connotation |
+| **Pooja** | पूजा | Worship, ceremony | P(8)+O(7)+O(7)+J(1)+A(1)=24→**6** | **CAUTION** — religious-ceremony connotation |
+
 ## DEFERRED (Future extraction when needed)
 
 | Name | Sanskrit | Meaning | Chaldean Calc | Trigger |
@@ -288,9 +344,13 @@ These are English/Latin names in the ecosystem that happen to also be Chaldean 6
 
 **Available — named but unbuilt (11):** Margam, Vilasa, Spardha, Arthik, Vaarta, Smriti, Navikaran, Unnayan, Vivartaka, Sanvardhan, Ujjvalan
 
+**Available — Chaldean-6 candidates added 2026-05-08 (27):** Khyaapan, Aamantran, Khyaati, Prerana, Stava, Sansar, Dhama, Varna*, Vyakta*, Mod, Lab, Bal, Kal*, Jaagaran, Arambh, Nirnay, Adhyas, Akhyan, Posha, Spasht, Vinaya, Sadhya, Antim, Nivritti, Aastha, Kalpa*, Pooja*
+
 **Available — rejected candidates (2):** Lokpal, Matrika
 
 **Deferred (1):** Chetana
+
+**Reserved for assigned future packages (2):** Drasta (cognitive cortex), Lekh (marketing — chosen 2026-05-08)
 
 *\* = Not actually Chaldean 6 (adopted before strict convention)*
 
@@ -306,6 +366,7 @@ These are English/Latin names in the ecosystem that happen to also be Chaldean 6
 
 ## RESERVED FOR FUTURE USE
 
-| Name | Sanskrit | Meaning | Chaldean |
-|---|---|---|---|
-| `drasta` | द्रष्टा | The Seer, The Observer | D(4)+R(2)+A(1)+S(3)+T(4)+A(1)=15→**6** |
+| Name | Sanskrit | Meaning | Chaldean | Reserved for |
+|---|---|---|---|---|
+| `drasta` | द्रष्टा | The Seer, The Observer | D(4)+R(2)+A(1)+S(3)+T(4)+A(1)=15→**6** | Cognitive cortex package — local LLM agent (plan: `framework-drasta-local-agent-2026-04-25.md`) |
+| `lekh` | लेख | Writing, inscription, document, message | L(3)+E(5)+K(2)+H(5)=15→**6** | Marketing package — replaces duta's marketing scaffolding (chosen 2026-05-08). Pairs with Duta as Lekh-composes / Duta-carries; sibling root √लिख् with Abhilekh |
