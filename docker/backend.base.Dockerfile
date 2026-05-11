@@ -25,7 +25,7 @@ RUN python3 /build/install-framework-packages.py /build/packages --install
 # 2. Daksh toolkit — deps pre-installed in Tier 0, just register.
 # Phase 5 (spicy-drifting-muffin packaging refactor): uv pip install
 # (drop-in pip replacement, faster). uv comes from lochan-deps-backend.
-COPY framework/lochan/packages/daksh/ /build/daksh/
+COPY framework/lochan/packages/daksh/backend/daksh/ /build/daksh/
 RUN uv pip install --system --no-deps --no-cache /build/daksh/
 
 # Strip bytecode, test suites, docs, and examples from ALL site-packages.
@@ -108,7 +108,7 @@ COPY framework/lochan/packages/daksh/build/runtime/install-packages.py /app/scri
 COPY framework/lochan/packages/daksh/build/runtime/install-domain-packages.py /app/scripts/
 COPY framework/lochan/packages/daksh/build/runtime/install-framework-packages.py /app/scripts/
 COPY framework/lochan/packages/daksh/build/runtime/dev-entrypoint.sh /app/scripts/
-COPY framework/lochan/packages/daksh/daksh/generators/generate-manifest.py /app/scripts/
+COPY framework/lochan/packages/daksh/backend/daksh/generators/generate-manifest.py /app/scripts/
 
 # 5. Framework package configs + locales
 COPY --from=builder /build/packages/ /tmp/packages/
