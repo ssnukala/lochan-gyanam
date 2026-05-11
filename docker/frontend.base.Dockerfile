@@ -46,14 +46,19 @@ COPY framework/lochan/packages/daksh/build/runtime/frontend-entrypoint.sh /app/s
 COPY framework/lochan/packages/daksh/backend/daksh/generators/generate-domain-manifest.py /app/scripts/
 RUN chmod +x /app/scripts/frontend-entrypoint.sh
 
-# 4. Framework package configs + locales + framework-tier mandi catalog stub
-COPY framework/lochan/packages/daksh/build/runtime/install-frontend-configs.py /tmp/
+# 4. Framework-tier mandi catalog stub.
+#
+# Post 2026-05-11: framework packages live at /app/packages/ via the
+# step 1 COPY (single source of truth). The legacy
+# install-frontend-configs.py step that duplicated frontend trees into
+# /app/framework-packages/ is retired — that location sat outside the
+# pnpm workspace, broke @mui type resolution, and produced spurious TS
+# errors. The manifest generator + Vite globs now read from
+# /app/packages/ exclusively.
 COPY framework/lochan/packages/daksh/build/runtime/generate-framework-catalog.py /tmp/
 COPY framework/lochan/packages/ /tmp/packages/
-COPY tools/ /tmp/tools/
-RUN python3 /tmp/install-frontend-configs.py /tmp/packages:/tmp/tools /app/framework-packages \
-    && python3 /tmp/generate-framework-catalog.py /tmp/packages /app/src/data/mandi-catalog.json \
-    && rm -rf /tmp/packages /tmp/tools /tmp/install-frontend-configs.py /tmp/generate-framework-catalog.py
+RUN python3 /tmp/generate-framework-catalog.py /tmp/packages /app/src/data/mandi-catalog.json \
+    && rm -rf /tmp/packages /tmp/generate-framework-catalog.py
 
 # 5. Runtime dirs
 RUN mkdir -p /app/log /app/packages
