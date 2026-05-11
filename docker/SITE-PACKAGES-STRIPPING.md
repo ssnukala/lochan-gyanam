@@ -96,11 +96,11 @@ python3 util/scripts/trace-site-packages.py -- \
 
 # 4. Agentic tests — covers tools, events, contexts.
 python3 util/scripts/trace-site-packages.py -- \
-    pytest tools/daksh/tests -x --no-header
+    pytest framework/lochan/packages/daksh/tests -x --no-header
 
 # 5. Patent coverage verification — covers every claim-tagged path.
 python3 util/scripts/trace-site-packages.py -- \
-    python3 tools/daksh/scripts/run-patent-coverage.py
+    python3 framework/lochan/packages/daksh/scripts/run-patent-coverage.py
 ```
 
 Commit `docker/site-packages-used.txt` to the repo. Re-regenerate on

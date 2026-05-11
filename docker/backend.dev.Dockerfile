@@ -40,7 +40,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # Doing the strip in a separate RUN only shadows files (layers are append-only),
 # which wouldn't shrink the image. The combined RUN ensures the deletes
 # actually reduce the layer size.
-COPY tools/daksh/ /build/daksh/
+COPY framework/lochan/packages/daksh/ /build/daksh/
 RUN pip install --no-cache-dir /build/daksh[dev] \
     && rm -rf /build/daksh \
     && find /usr/local/lib/python3.13/site-packages \

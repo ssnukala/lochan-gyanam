@@ -42,16 +42,13 @@ COPY framework/lochan/packages/ ./packages/
 RUN pnpm install --frozen-lockfile --offline
 
 # 3. Scripts (direct from daksh tool — no staging)
-COPY tools/daksh/build/runtime/frontend-entrypoint.sh /app/scripts/
-COPY tools/daksh/daksh/generators/generate-domain-manifest.py /app/scripts/
+COPY framework/lochan/packages/daksh/build/runtime/frontend-entrypoint.sh /app/scripts/
+COPY framework/lochan/packages/daksh/daksh/generators/generate-domain-manifest.py /app/scripts/
 RUN chmod +x /app/scripts/frontend-entrypoint.sh
 
 # 4. Framework package configs + locales + framework-tier mandi catalog stub
-# Tools tree (daksh) is also a frontend contributor per the runtime-surface
-# convention — it ships widgets + lochan.json under tools/daksh/daksh/frontend/.
-# install-frontend-configs.py auto-detects both layouts (direct + nested).
-COPY tools/daksh/build/runtime/install-frontend-configs.py /tmp/
-COPY tools/daksh/build/runtime/generate-framework-catalog.py /tmp/
+COPY framework/lochan/packages/daksh/build/runtime/install-frontend-configs.py /tmp/
+COPY framework/lochan/packages/daksh/build/runtime/generate-framework-catalog.py /tmp/
 COPY framework/lochan/packages/ /tmp/packages/
 COPY tools/ /tmp/tools/
 RUN python3 /tmp/install-frontend-configs.py /tmp/packages:/tmp/tools /app/framework-packages \

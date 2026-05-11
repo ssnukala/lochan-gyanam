@@ -96,7 +96,7 @@ A framework-source-only edit re-uses the 491 MB deps layer from cache. Verified 
 
 ### Tier 2 — Distroless (skipped)
 
-`tools/daksh/build/runtime/dev-entrypoint.sh` pip-installs domain packages at container start, requires `apt-get` for gcc/g++ fallback, and calls `python3 -m muulam.cli seed`. Distroless has no shell and no apt. Migrating would require pre-building wheels for every domain package and baking them into a domain-specific image — a structural change, not a size tweak. Skip for Launch 1. Revisit in v1.1 with a dedicated "frozen runtime" image variant.
+`framework/lochan/packages/daksh/build/runtime/dev-entrypoint.sh` pip-installs domain packages at container start, requires `apt-get` for gcc/g++ fallback, and calls `python3 -m muulam.cli seed`. Distroless has no shell and no apt. Migrating would require pre-building wheels for every domain package and baking them into a domain-specific image — a structural change, not a size tweak. Skip for Launch 1. Revisit in v1.1 with a dedicated "frozen runtime" image variant.
 
 ---
 

@@ -3,7 +3,7 @@
     "Single source of truth for digest-pinned upstream images used by the",
     "Lochan test image chain (lochan-test-base + lochan-fwtest-base).",
     "Refresh policy: monthly on the 1st via",
-    "tools/daksh/scripts/refresh-test-pins.sh; cosign-verified in CI before",
+    "framework/lochan/packages/daksh/scripts/refresh-test-pins.sh; cosign-verified in CI before",
     "the Dockerfiles are invoked (Security Gate 1).",
     "",
     "If you bump a digest here, also bump the matching ARG default in:",

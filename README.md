@@ -19,7 +19,7 @@ deploy scripts, and the canonical list of repos that the workspace composes.
 └── README.md        # this file
 ```
 
-Everything else in the workspace — `framework/lochan/`, `tools/daksh/`,
+Everything else in the workspace — `framework/lochan/`, `framework/lochan/packages/daksh/`,
 `mandi/common/*`, `mandi/domain/*`, `apps/*` — lives in its own git repo and
 is ignored here (see `.gitignore`). `deploy-lochan.sh` clones or pulls each
 one as needed.
@@ -96,7 +96,7 @@ corresponding `--app` is requested**. To wire a new one:
 ## Boundaries (things intentionally *not* here)
 
 - **Framework code** — lives in `ssnukala/lochan` (`framework/lochan/`).
-- **CLI tooling** — lives in `ssnukala/lochan-daksh` (`tools/daksh/`).
+- **CLI tooling** — lives in `ssnukala/lochan-daksh` (`framework/lochan/packages/daksh/`).
 - **Packages** — each common / domain package is its own repo under
   `mandi/common/*` or `mandi/domain/*`.
 - **Apps** — each app (`apps/<name>/`) is directory inside its framework
