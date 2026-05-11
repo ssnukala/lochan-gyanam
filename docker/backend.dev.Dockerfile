@@ -40,7 +40,12 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # Doing the strip in a separate RUN only shadows files (layers are append-only),
 # which wouldn't shrink the image. The combined RUN ensures the deletes
 # actually reduce the layer size.
-COPY framework/lochan/packages/daksh/backend/daksh/ /build/daksh/
+# Daksh is installed by install-framework-packages.py alongside every
+# other framework package (line 21-23 of backend.base). For dev image we
+# additionally re-install with [dev] extras — pulls in fastmcp + libcst
+# + httpx that don't ship in the prod base.
+COPY framework/lochan/packages/daksh/pyproject.toml /build/daksh/pyproject.toml
+COPY framework/lochan/packages/daksh/backend /build/daksh/backend
 RUN pip install --no-cache-dir /build/daksh[dev] \
     && rm -rf /build/daksh \
     && find /usr/local/lib/python3.13/site-packages \
