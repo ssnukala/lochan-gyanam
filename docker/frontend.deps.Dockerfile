@@ -37,7 +37,6 @@ COPY framework/lochan/frontend/package.json ./frontend/
 COPY framework/lochan/packages/abhilekh/frontend/package.json ./packages/abhilekh/frontend/
 COPY framework/lochan/packages/duta/frontend/package.json ./packages/duta/frontend/
 COPY framework/lochan/packages/flow/frontend/package.json ./packages/flow/frontend/
-COPY framework/lochan/packages/lighthouse/frontend/package.json ./packages/lighthouse/frontend/
 COPY framework/lochan/packages/litevault/frontend/package.json ./packages/litevault/frontend/
 COPY framework/lochan/packages/muulam/frontend/package.json ./packages/muulam/frontend/
 COPY framework/lochan/packages/pratyuttar/frontend/package.json ./packages/pratyuttar/frontend/
