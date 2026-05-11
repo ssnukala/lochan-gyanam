@@ -36,7 +36,7 @@ WORKDIR /build
 COPY framework/lochan/packages/daksh/build/runtime/extract-all-deps.py /build/
 COPY framework/lochan/backend/requirements.txt /build/backend/
 COPY framework/lochan/packages/ /build/packages/
-COPY framework/lochan/packages/daksh/pyproject.toml /build/.daksh/pyproject.toml
+COPY framework/lochan/packages/daksh/backend/pyproject.toml /build/.daksh/pyproject.toml
 
 # Generate combined deps file and install everything via uv.
 # BuildKit cache mount on /root/.cache/uv: wheels persist across rebuilds so
