@@ -13,7 +13,7 @@
 # Frequency: Weekly/monthly. Push to registry for fast pulls.
 #
 # Build (from gyanam/ root):
-#   docker build -f docker/backend.deps.Dockerfile -t lochan-deps-backend:latest .
+#   docker build -f docker/01-backend-deps.Dockerfile -t lochan-deps-backend:latest .
 
 # syntax=docker/dockerfile:1.6
 
@@ -33,10 +33,10 @@ COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /usr/local/bin/
 WORKDIR /build
 
 # Copy everything needed for dependency extraction (direct from monorepo)
-COPY tools/daksh/build/runtime/extract-all-deps.py /build/
+COPY framework/lochan/packages/daksh/build/runtime/extract-all-deps.py /build/
 COPY framework/lochan/backend/requirements.txt /build/backend/
 COPY framework/lochan/packages/ /build/packages/
-COPY tools/daksh/pyproject.toml /build/.daksh/pyproject.toml
+COPY framework/lochan/packages/daksh/backend/pyproject.toml /build/.daksh/pyproject.toml
 
 # Generate combined deps file and install everything via uv.
 # BuildKit cache mount on /root/.cache/uv: wheels persist across rebuilds so
@@ -68,7 +68,7 @@ RUN find /usr/local/lib/python3.13/site-packages \
 # -- Stage 2: Clean runtime (no gcc, no git, no build artifacts) -------
 FROM python:3.13-slim
 
-# Install uv in runtime too (Tier 1 backend.base.Dockerfile builder uses
+# Install uv in runtime too (Tier 1 02-backend-base.Dockerfile builder uses
 # `uv pip install --no-deps daksh/`). ~10MB; saves much more in Tier 1
 # build-time speed.
 COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /usr/local/bin/

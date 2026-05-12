@@ -15,12 +15,7 @@
     {
       "path": "framework/lochan",
       "url":  "https://github.com/ssnukala/lochan.git",
-      "description": "Framework code — muulam, gyanam, trishul, abhilekh, lighthouse, etc."
-    },
-    {
-      "path": "tools/daksh",
-      "url":  "https://github.com/ssnukala/lochan-daksh.git",
-      "description": "daksh CLI — scaffold, build, evolve, janch, gate"
+      "description": "Framework code — muulam, gyanam, trishul, abhilekh, duta, drasta, daksh, janch, vardhan, etc. (tools moved into framework/lochan/packages/ on 2026-05-11)."
     }
   ],
   "mandi_common": [

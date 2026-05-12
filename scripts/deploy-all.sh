@@ -358,12 +358,12 @@ build_base_images() {
 
   hdr "Phase 3: Building Base Images (Tier 1)"
 
-  if [ ! -f "$FRAMEWORK_DIR/forge" ]; then
+  if [ ! -d "$FRAMEWORK_DIR/packages/daksh" ]; then
     err "Framework not found at $FRAMEWORK_DIR. Clone repos first."
     exit 1
   fi
 
-  (cd "$FRAMEWORK_DIR" && bash forge build)
+  (cd "$FRAMEWORK_DIR" && daksh build)
   log "Base images built successfully"
 }
 
@@ -550,54 +550,35 @@ ENV_EOF
   # Copy .env to .env.dev
   cp "$app_dir/.env" "$app_dir/.env.dev"
 
-  # ── Run generate-app-config.py ──
-  local gen_script="$FRAMEWORK_DIR/forge.d/generators/generate-app-config.py"
-  if [ -f "$gen_script" ]; then
-    local gen_args="--config $app_dir/packages.json"
-    if [ "$PROD_MODE" = true ]; then
-      gen_args+=" --prod"
-    fi
-    python3 "$gen_script" $gen_args || {
-      # Fallback: use forge deploy if generate-app-config.py fails
-      warn "Config generator failed — using forge deploy"
-      _deploy_via_forge "$app_name" "$primary" "$pkgs" "$be_port" "$fe_port" "$db_port"
-      return
-    }
-  else
-    _deploy_via_forge "$app_name" "$primary" "$pkgs" "$be_port" "$fe_port" "$db_port"
-    return
-  fi
+  # ── Run daksh deploy to generate compose + app config ──
+  _deploy_via_daksh "$app_name" "$primary" "$pkgs" "$be_port" "$fe_port" "$db_port"
 
   # ── Start containers ──
   _start_app "$app_name" "$app_dir"
 }
 
-_deploy_via_forge() {
+_deploy_via_daksh() {
   local app_name="$1" primary="$2" pkgs="$3" be_port="$4" fe_port="$5" db_port="$6"
 
-  local forge_cmd="bash $FRAMEWORK_DIR/forge deploy $app_name --ports ${be_port}:${fe_port} --db-port ${db_port}"
+  local daksh_cmd="daksh deploy $app_name --ports ${be_port}:${fe_port} --db-port ${db_port}"
 
-  if [ "$pkgs" = "none" ]; then
-    # Framework-only app
-    forge_cmd+=""
-  else
+  if [ "$pkgs" != "none" ]; then
     IFS=',' read -ra pkg_list <<< "$pkgs"
     local first_pkg=true
     for p in "${pkg_list[@]}"; do
-      forge_cmd+=" --package ${p}:latest"
+      daksh_cmd+=" --package ${p}:latest"
       if [ "$first_pkg" = true ] && [ -n "$primary" ]; then
-        forge_cmd+=" --primary"
+        daksh_cmd+=" --primary"
         first_pkg=false
       fi
     done
   fi
 
   if [ "$PROD_MODE" = true ]; then
-    forge_cmd+=" --prod"
+    daksh_cmd+=" --prod"
   fi
 
-  # forge deploy expects to be run from framework dir
-  (cd "$FRAMEWORK_DIR" && eval "$forge_cmd") || warn "forge deploy $app_name may have issues"
+  (cd "$FRAMEWORK_DIR" && eval "$daksh_cmd") || warn "daksh deploy $app_name may have issues"
 }
 
 _start_app() {
@@ -748,7 +729,7 @@ print_summary() {
   echo "  Password: changeme"
   echo ""
   echo -e "${BOLD}Useful Commands:${NC}"
-  echo "  cd framework/lochan && ./forge build          # Rebuild base images"
+  echo "  daksh build                                   # Rebuild base images"
   echo "  cd apps/<app> && docker compose -f compose.dev.yml logs -f backend"
   echo "  cd apps/<app> && docker compose -f compose.dev.yml restart backend"
   echo "  curl http://localhost:<port>/health            # Health check"

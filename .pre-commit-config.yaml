@@ -1,7 +1,7 @@
 # Workstream D2 — Lochan pre-commit gate.
 #
 # All hooks are `local` so they execute against the developer's own
-# daksh-cli (installed under tools/daksh/). No network fetch, no
+# daksh-cli (installed under framework/lochan/packages/daksh/). No network fetch, no
 # pinned-version drift — the hooks use whatever daksh the workstation
 # has.
 #
@@ -20,7 +20,7 @@ repos:
     hooks:
       - id: daksh-janch-changed
         name: daksh janch (changed packages only)
-        entry: tools/daksh/daksh-cli janch --changed --ci --threshold 80
+        entry: framework/lochan/packages/daksh/daksh-cli janch --changed --ci --threshold 80
         language: system
         pass_filenames: false
         always_run: true
@@ -28,7 +28,7 @@ repos:
 
       - id: daksh-evolve-standard-changed
         name: daksh evolve --mode standard (changed packages)
-        entry: tools/daksh/daksh-cli evolve --changed --mode standard --ci --threshold 80
+        entry: framework/lochan/packages/daksh/daksh-cli evolve --changed --mode standard --ci --threshold 80
         language: system
         pass_filenames: false
         always_run: true
@@ -36,7 +36,7 @@ repos:
 
       - id: no-plaintext-env
         name: reject tracked .env files
-        entry: tools/daksh/scripts/precommit-no-plaintext-env.sh
+        entry: framework/lochan/packages/daksh/scripts/precommit-no-plaintext-env.sh
         language: system
         pass_filenames: false
         always_run: true
@@ -50,7 +50,7 @@ repos:
       # Stale sentinels (>4h heartbeat) warn; very stale (>24h) ignored.
       - id: parallel-session-check
         name: block commits overlapping parallel-session in-flight files
-        entry: tools/daksh/scripts/precommit-parallel-session-check.py
+        entry: framework/lochan/packages/daksh/scripts/precommit-parallel-session-check.py
         language: system
         pass_filenames: false
         always_run: true
@@ -68,7 +68,7 @@ repos:
       # commit's frontend changes haven't been re-autowired; abort.
       - id: daksh-autowire-frontend
         name: daksh autowire --frontend (regenerate + verify clean)
-        entry: tools/daksh/scripts/precommit-autowire-frontend.sh
+        entry: framework/lochan/packages/daksh/scripts/precommit-autowire-frontend.sh
         language: system
         pass_filenames: false
         always_run: true
@@ -86,7 +86,7 @@ repos:
       # ext #2 — now janch-tests autowire ext #3).
       - id: daksh-autowire-janch-stale
         name: daksh autowire janch tests (regenerate + verify clean)
-        entry: tools/daksh/scripts/precommit-autowire-janch-stale.sh
+        entry: framework/lochan/packages/daksh/scripts/precommit-autowire-janch-stale.sh
         language: system
         pass_filenames: false
         always_run: true

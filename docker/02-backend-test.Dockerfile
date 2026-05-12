@@ -26,7 +26,7 @@
 #     └─→ lochan-fwtest-base     (HMR live-debug, never CI)
 #
 # Build (from gyanam/ root):
-#   docker build -f docker/backend.test.Dockerfile -t lochan-test-base:latest .
+#   docker build -f docker/02-backend-test.Dockerfile -t lochan-test-base:latest .
 #
 # Layer app-test on top:
 #   FROM lochan-test-base
@@ -42,7 +42,7 @@
 # docker images --digests` and updating the line below + the Chromium digest
 # pin in framework/lochan/docker/PINS.json.
 #
-# Pin policy: refreshed monthly on the 1st via tools/daksh/scripts/refresh-test-pins.sh,
+# Pin policy: refreshed monthly on the 1st via framework/lochan/packages/daksh/scripts/refresh-test-pins.sh,
 # cosign-verified in build-sign-images.yml before this Dockerfile is invoked.
 ARG PLAYWRIGHT_DIGEST=sha256:6bbd515848db4042068571135979b6ee6d330a794b28e037e3a6ccd7f2abfa26
 ARG PLAYWRIGHT_VERSION=1.48.0
@@ -106,7 +106,7 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
       curl gnupg \
     && rm -rf /var/lib/apt/lists/*
 
-# ── 2. Node 22 (matches frontend.base.Dockerfile) for Vitest/MSW/axe-core ──
+# ── 2. Node 22 (matches 02-frontend-base.Dockerfile) for Vitest/MSW/axe-core ──
 RUN curl -fsSL https://deb.nodesource.com/setup_22.x | bash - \
     && apt-get install -y --no-install-recommends nodejs \
     && rm -rf /var/lib/apt/lists/*

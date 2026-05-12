@@ -42,7 +42,7 @@
 
 ### Tier 1.2 — Backend: strip `__pycache__` and `.pyc`
 
-**Files:** `docker/backend.deps.Dockerfile`, `docker/backend.base.Dockerfile`, `docker/backend.dev.Dockerfile`.
+**Files:** `docker/01-backend-deps.Dockerfile`, `docker/02-backend-base.Dockerfile`, `docker/03-backend-dev.Dockerfile`.
 
 - **deps**: strip already existed in builder-stage cleanup — confirmed no regression.
 - **base**: builder stage now strips after framework-package + daksh install. Runtime stage now pre-strips pip's `__pycache__` (inherited from `python:3.13-slim`) BEFORE the COPY so the COPY can overlay a stripped tree. Critical insight: Docker layers are append-only — a `RUN rm` in a later layer only *shadows* files; it does NOT shrink earlier layers. Strips must happen in the same RUN as the file-creation, or in the builder stage before the final COPY.
@@ -56,7 +56,7 @@ Added to the same cleanup RUNs. Verified no framework code imports `.tests` subp
 
 ### Tier 1.4 — BuildKit cache mounts for pip + apt
 
-Added `# syntax=docker/dockerfile:1.6` to `backend.deps.Dockerfile` and mount cache directories:
+Added `# syntax=docker/dockerfile:1.6` to `01-backend-deps.Dockerfile` and mount cache directories:
 
 ```dockerfile
 RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
@@ -78,7 +78,7 @@ Zero image-size impact per build (mounts are host-side only). Rebuild speed impr
 - `google-generativeai` (Gemini) depends on `google-api-python-client` transitively. It does use `googleapiclient.discovery.build_from_document(discovery_doc, ...)` — BUT the `discovery_doc` is fetched via HTTP at runtime, not loaded from this on-disk cache. Confirmed in `google/generativeai/client.py`.
 - `muulam/services/sheet_client.py` explicitly says "No google-api-python-client dependency. Uses raw HTTP."
 
-**Applied:** `rm -rf /usr/local/lib/python3.13/site-packages/googleapiclient/discovery_cache/documents` in the builder-stage cleanup RUN of `backend.deps.Dockerfile`. The library's `discovery.py` and `build_from_document()` still work — they just fetch discovery docs over HTTP if/when needed, which `google-generativeai` was doing anyway.
+**Applied:** `rm -rf /usr/local/lib/python3.13/site-packages/googleapiclient/discovery_cache/documents` in the builder-stage cleanup RUN of `01-backend-deps.Dockerfile`. The library's `discovery.py` and `build_from_document()` still work — they just fetch discovery docs over HTTP if/when needed, which `google-generativeai` was doing anyway.
 
 ### Tier 2 — Multi-arch (skipped for Launch 1)
 
@@ -86,7 +86,7 @@ Deferred. Current builds are `linux/arm64` (Apple Silicon host). Adding `linux/a
 
 ### Tier 2 — Layer ordering (verified, no change)
 
-`backend.base.Dockerfile` already orders correctly:
+`02-backend-base.Dockerfile` already orders correctly:
 1. `FROM lochan-deps-backend:latest` (rarely changes)
 2. Framework packages COPY + install (medium frequency)
 3. Daksh install (medium)
@@ -96,7 +96,7 @@ A framework-source-only edit re-uses the 491 MB deps layer from cache. Verified 
 
 ### Tier 2 — Distroless (skipped)
 
-`tools/daksh/build/runtime/dev-entrypoint.sh` pip-installs domain packages at container start, requires `apt-get` for gcc/g++ fallback, and calls `python3 -m muulam.cli seed`. Distroless has no shell and no apt. Migrating would require pre-building wheels for every domain package and baking them into a domain-specific image — a structural change, not a size tweak. Skip for Launch 1. Revisit in v1.1 with a dedicated "frozen runtime" image variant.
+`framework/lochan/packages/daksh/build/runtime/dev-entrypoint.sh` pip-installs domain packages at container start, requires `apt-get` for gcc/g++ fallback, and calls `python3 -m muulam.cli seed`. Distroless has no shell and no apt. Migrating would require pre-building wheels for every domain package and baking them into a domain-specific image — a structural change, not a size tweak. Skip for Launch 1. Revisit in v1.1 with a dedicated "frozen runtime" image variant.
 
 ---
 
@@ -144,16 +144,16 @@ No regressions. All framework-level imports and daksh CLI work identically to pr
 ## Files edited / created
 
 **Edited:**
-- `/docker/backend.deps.Dockerfile` — added syntax=dockerfile:1.6, cache mounts, strip tests/docs/examples, strip googleapiclient discovery_cache.
-- `/docker/backend.base.Dockerfile` — strip tests/docs/examples in builder stage; pre-strip runtime's pip `__pycache__` before COPY.
-- `/docker/backend.dev.Dockerfile` — collapse pip install + strip into single RUN for real layer shrinkage.
+- `/docker/01-backend-deps.Dockerfile` — added syntax=dockerfile:1.6, cache mounts, strip tests/docs/examples, strip googleapiclient discovery_cache.
+- `/docker/02-backend-base.Dockerfile` — strip tests/docs/examples in builder stage; pre-strip runtime's pip `__pycache__` before COPY.
+- `/docker/03-backend-dev.Dockerfile` — collapse pip install + strip into single RUN for real layer shrinkage.
 
 **Created:**
 - `/docker/nginx-spa.conf` — reusable SPA nginx config with gzip + immutable asset cache + SPA fallback + backend proxy. Apps can swap out inline `nginx.frontend.conf` for this (optional).
 - `/docker/IMAGE-OPTIMIZATION-RESULTS-2026-04-20.md` — this doc.
 
 **Unchanged:**
-- `/docker/frontend.deps.Dockerfile`, `/docker/frontend.base.Dockerfile` — frontend prod runtime is already nginx:alpine at the app level (71.9 MB).
+- `/docker/01-frontend-deps.Dockerfile`, `/docker/02-frontend-base.Dockerfile` — frontend prod runtime is already nginx:alpine at the app level (71.9 MB).
 - `.github/workflows/build-sign-images.yml` — multi-arch deferred to v1.1.
 
 ---

@@ -20,7 +20,7 @@
 #     └─→ lochan-fwtest-base     (THIS — fwtest01 only, never CI)
 #
 # Build (from gyanam/ root):
-#   docker build -f docker/backend.fwtest.Dockerfile -t lochan-fwtest-base:latest .
+#   docker build -f docker/02-backend-fwtest.Dockerfile -t lochan-fwtest-base:latest .
 
 # syntax=docker/dockerfile:1.6
 
