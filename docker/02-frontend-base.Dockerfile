@@ -42,7 +42,7 @@ COPY framework/lochan/packages/ ./packages/
 RUN pnpm install --frozen-lockfile --offline
 
 # 3. Scripts (direct from daksh tool — no staging)
-COPY framework/lochan/packages/daksh/build/runtime/frontend-entrypoint.sh /app/scripts/
+COPY framework/lochan/packages/daksh/backend/daksh/runtime/frontend-entrypoint.sh /app/scripts/
 COPY framework/lochan/packages/daksh/backend/daksh/generators/generate-domain-manifest.py /app/scripts/
 RUN chmod +x /app/scripts/frontend-entrypoint.sh
 
@@ -55,7 +55,7 @@ RUN chmod +x /app/scripts/frontend-entrypoint.sh
 # pnpm workspace, broke @mui type resolution, and produced spurious TS
 # errors. The manifest generator + Vite globs now read from
 # /app/packages/ exclusively.
-COPY framework/lochan/packages/daksh/build/runtime/generate-framework-catalog.py /tmp/
+COPY framework/lochan/packages/daksh/backend/daksh/runtime/generate-framework-catalog.py /tmp/
 COPY framework/lochan/packages/ /tmp/packages/
 RUN python3 /tmp/generate-framework-catalog.py /tmp/packages /app/src/data/mandi-catalog.json \
     && rm -rf /tmp/packages /tmp/generate-framework-catalog.py
