@@ -3,11 +3,11 @@
 # Contains: All npm deps (from Tier 0) + framework frontend source + package configs.
 # This image IS a runnable dev server (empty, no domain pages).
 #
-# Requires: lochan-deps-frontend:latest (Tier 0 — build with docker/frontend.deps.Dockerfile)
+# Requires: lochan-deps-frontend:latest (Tier 0 — build with docker/01-frontend-deps.Dockerfile)
 #
 # Build (from gyanam/ root):
-#   docker build -f docker/frontend.base.Dockerfile --target dev -t lochan-frontend-base:dev .
-#   docker build -f docker/frontend.base.Dockerfile --target prod -t lochan-frontend-base:prod .
+#   docker build -f docker/02-frontend-base.Dockerfile --target dev -t lochan-frontend-base:dev .
+#   docker build -f docker/02-frontend-base.Dockerfile --target prod -t lochan-frontend-base:prod .
 
 # ── Dev base: deps already installed, just add source ────────────────
 FROM lochan-deps-frontend:latest AS dev

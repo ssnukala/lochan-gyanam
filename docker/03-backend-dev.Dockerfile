@@ -2,10 +2,10 @@
 # of the production base. Used for: fwtest01, CI runners, any environment
 # that needs evolve/janch/deployer/MCP-admin tooling.
 #
-# Requires: lochan-backend-base:latest (Tier 1 — build with docker/backend.base.Dockerfile)
+# Requires: lochan-backend-base:latest (Tier 1 — build with docker/02-backend-base.Dockerfile)
 #
 # Build (from gyanam/ root):
-#   docker build -f docker/backend.dev.Dockerfile -t lochan-backend-dev:latest .
+#   docker build -f docker/03-backend-dev.Dockerfile -t lochan-backend-dev:latest .
 #
 # The production base already has daksh installed without extras. This image
 # layers the dev extras on top, so a single `pip install daksh[dev]` would

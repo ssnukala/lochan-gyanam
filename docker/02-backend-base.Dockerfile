@@ -3,10 +3,10 @@
 # Contains: All deps (from Tier 0) + framework packages + daksh + source code.
 # This image IS a runnable app (empty, no domain packages).
 #
-# Requires: lochan-deps-backend:latest (Tier 0 — build with docker/backend.deps.Dockerfile)
+# Requires: lochan-deps-backend:latest (Tier 0 — build with docker/01-backend-deps.Dockerfile)
 #
 # Build (from gyanam/ root):
-#   docker build -f docker/backend.base.Dockerfile -t lochan-backend-base:latest .
+#   docker build -f docker/02-backend-base.Dockerfile -t lochan-backend-base:latest .
 #
 # Layer domain packages on top:
 #   FROM lochan-backend-base

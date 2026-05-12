@@ -26,7 +26,7 @@
 #     └─→ lochan-fwtest-base     (HMR live-debug, never CI)
 #
 # Build (from gyanam/ root):
-#   docker build -f docker/backend.test.Dockerfile -t lochan-test-base:latest .
+#   docker build -f docker/02-backend-test.Dockerfile -t lochan-test-base:latest .
 #
 # Layer app-test on top:
 #   FROM lochan-test-base
@@ -106,7 +106,7 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
       curl gnupg \
     && rm -rf /var/lib/apt/lists/*
 
-# ── 2. Node 22 (matches frontend.base.Dockerfile) for Vitest/MSW/axe-core ──
+# ── 2. Node 22 (matches 02-frontend-base.Dockerfile) for Vitest/MSW/axe-core ──
 RUN curl -fsSL https://deb.nodesource.com/setup_22.x | bash - \
     && apt-get install -y --no-install-recommends nodejs \
     && rm -rf /var/lib/apt/lists/*

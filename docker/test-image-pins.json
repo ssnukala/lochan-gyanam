@@ -7,8 +7,8 @@
     "the Dockerfiles are invoked (Security Gate 1).",
     "",
     "If you bump a digest here, also bump the matching ARG default in:",
-    "  - docker/backend.test.Dockerfile",
-    "  - docker/backend.fwtest.Dockerfile",
+    "  - docker/02-backend-test.Dockerfile",
+    "  - docker/02-backend-fwtest.Dockerfile",
     "Both paths are kept consistent by the refresh script."
   ],
   "playwright": {

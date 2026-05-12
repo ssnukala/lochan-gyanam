@@ -14,7 +14,7 @@
 # Frequency: Weekly/monthly. Push to registry for fast pulls.
 #
 # Build (from gyanam/ root):
-#   docker build -f docker/frontend.deps.Dockerfile -t lochan-deps-frontend:latest .
+#   docker build -f docker/01-frontend-deps.Dockerfile -t lochan-deps-frontend:latest .
 
 FROM node:22-alpine
 

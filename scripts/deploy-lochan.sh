@@ -211,10 +211,10 @@ if (( BUILD )); then
     fi
   }
 
-  docker_build docker/backend.deps.Dockerfile  lochan-deps-backend:latest
-  docker_build docker/frontend.deps.Dockerfile lochan-deps-frontend:latest
-  docker_build docker/backend.base.Dockerfile  lochan-backend-base:latest
-  docker_build docker/frontend.base.Dockerfile lochan-frontend-base:latest
+  docker_build docker/01-backend-deps.Dockerfile  lochan-deps-backend:latest
+  docker_build docker/01-frontend-deps.Dockerfile lochan-deps-frontend:latest
+  docker_build docker/02-backend-base.Dockerfile  lochan-backend-base:latest
+  docker_build docker/02-frontend-base.Dockerfile lochan-frontend-base:latest
 else
   warn "skipping base image builds (--skip-build)"
 fi

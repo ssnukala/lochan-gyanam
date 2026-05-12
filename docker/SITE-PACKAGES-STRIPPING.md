@@ -62,7 +62,7 @@ python3 util/scripts/trace-site-packages.py --show
 
 # Step 3: build a stripped image.
 docker build \
-    -f docker/backend.base.Dockerfile \
+    -f docker/02-backend-base.Dockerfile \
     --build-arg STRIP_UNUSED=true \
     -t lochan-backend-base:stripped \
     .
@@ -131,7 +131,7 @@ On top of those, two Docker-level rails:
 4. **Opt-in by default.** `STRIP_UNUSED=false` is the default. You
    explicitly pass `--build-arg STRIP_UNUSED=true` to engage.
 
-5. **Dev images never strip.** `docker/backend.dev.Dockerfile` has no
+5. **Dev images never strip.** `docker/03-backend-dev.Dockerfile` has no
    STRIP_UNUSED arg — dev keeps everything for iteration.
 
 ## What to do if a container crashes
@@ -143,13 +143,13 @@ On top of those, two Docker-level rails:
 ```bash
 # Rebuild WITHOUT stripping.
 docker build \
-    -f docker/backend.base.Dockerfile \
+    -f docker/02-backend-base.Dockerfile \
     --build-arg STRIP_UNUSED=false \
     -t lochan-backend-base:latest \
     .
 
 # Or, even simpler — omit the build-arg entirely (default is false):
-docker build -f docker/backend.base.Dockerfile -t lochan-backend-base:latest .
+docker build -f docker/02-backend-base.Dockerfile -t lochan-backend-base:latest .
 ```
 
 Your image is back to full size but booting correctly. Now fix the root cause:
@@ -211,7 +211,7 @@ The resulting file lives inside the container; copy it out with
 `docker cp` and commit to the repo.
 
 **Q: What about dev images?**
-A: Dev images (`docker/backend.dev.Dockerfile`) don't accept the
+A: Dev images (`docker/03-backend-dev.Dockerfile`) don't accept the
 `STRIP_UNUSED` arg at all. Dev keeps full site-packages for
 iteration — you need pip, pytest, IPython, etc., most of which a
 happy-path trace would miss.
