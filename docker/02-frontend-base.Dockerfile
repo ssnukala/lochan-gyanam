@@ -48,12 +48,8 @@ RUN chmod +x /app/scripts/frontend-entrypoint.sh
 
 # 4. Framework-tier mandi catalog stub.
 #
-# Post 2026-05-11: framework packages live at /app/packages/ via the
-# step 1 COPY (single source of truth). The legacy
-# install-frontend-configs.py step that duplicated frontend trees into
-# /app/framework-packages/ is retired — that location sat outside the
-# pnpm workspace, broke @mui type resolution, and produced spurious TS
-# errors. The manifest generator + Vite globs now read from
+# Framework packages live at /app/packages/ via the step 1 COPY (single
+# source of truth). The manifest generator + Vite globs read from
 # /app/packages/ exclusively.
 COPY framework/lochan/packages/daksh/backend/daksh/runtime/generate-framework-catalog.py /tmp/
 COPY framework/lochan/packages/ /tmp/packages/
