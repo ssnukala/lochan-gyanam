@@ -1,0 +1,27 @@
+# ── OS/editor droppings ─────────────────────────────────────────────
+.DS_Store
+._*
+*.swp
+Thumbs.db
+.idea/
+.vscode/
+
+# ── Python ──────────────────────────────────────────────────────────
+__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+
+# ── Generated artifacts ─────────────────────────────────────────────
+*.log
+*.bak
+dist/
+build/
+
+# ── Secrets (defense in depth — nothing here should ship secrets) ──
+.env
+.env.*
+!.env.example
+*.priv
+*.pem
+*.key
