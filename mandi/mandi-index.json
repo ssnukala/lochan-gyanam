@@ -1,0 +1,1079 @@
+{
+  "registry_version": "1.0",
+  "registry_name": "Lochan Mandi",
+  "updated_at": "2026-04-18T13:19:29.106198+00:00",
+  "packages": {
+    "alankar": {
+      "latest": "1.0.0",
+      "versions": {
+        "1.0.0": {
+          "label": "Alankar — Custom Metadata Fields",
+          "description": "User-level custom metadata fields for any pyCRUD-managed entity",
+          "category": "extension",
+          "requires": [
+            "muulam",
+            "abhilekh",
+            "trishul"
+          ],
+          "optional": [],
+          "provides": [
+            "custom-field-definitions",
+            "entity-metadata-extension",
+            "scoped-fields"
+          ],
+          "source": {
+            "type": "git",
+            "url": "https://github.com/ssnukala/lochan-alankar",
+            "ref": "v1.0.0"
+          },
+          "stats": {
+            "models": [
+              "cf_custom_field_definitions"
+            ],
+            "tools_count": 1,
+            "routes_count": 3,
+            "has_frontend": false,
+            "has_seeds": false
+          },
+          "tier": "core",
+          "status": "available"
+        }
+      }
+    },
+    "demo-commerce": {
+      "latest": "1.0.0",
+      "versions": {
+        "1.0.0": {
+          "label": "Demo Commerce",
+          "description": "Demo commerce package with products, orders, and discounts for showcasing CRUD operations via AI chat",
+          "category": "extension",
+          "requires": [],
+          "optional": [],
+          "provides": [],
+          "source": {
+            "type": "git",
+            "url": "https://github.com/ssnukala/lochan-demo-commerce",
+            "ref": "v1.0.0"
+          },
+          "stats": {},
+          "tier": "extension",
+          "status": "available"
+        }
+      }
+    },
+    "litevault": {
+      "latest": "1.0.0",
+      "versions": {
+        "1.0.0": {
+          "label": "litevault",
+          "description": "Framework-level document management and secrets storage — upload, versioning, RAG indexing, encrypted key-value secrets",
+          "category": "other",
+          "requires": [],
+          "optional": [],
+          "provides": [],
+          "source": {
+            "type": "git",
+            "url": "",
+            "ref": "v1.0.0"
+          },
+          "stats": {},
+          "tier": "core",
+          "status": "available",
+          "governance_capabilities": {
+            "litevault.attachment.register": {
+              "handler": "litevault.core.document_service:register_attachment",
+              "description": "Register for litevault"
+            },
+            "litevault.secret.store": {
+              "handler": "daksh.secrets.secret_service:store_secret",
+              "description": "Store for litevault (moved to daksh.secrets)"
+            }
+          }
+        }
+      }
+    },
+    "gyanam": {
+      "latest": "1.0.0",
+      "versions": {
+        "1.0.0": {
+          "label": "gyanam",
+          "description": "AI-powered data layer with chat, local LLM, and multi-source data",
+          "category": "other",
+          "requires": [
+            "trishul",
+            "abhilekh"
+          ],
+          "optional": [],
+          "provides": [],
+          "source": {
+            "type": "git",
+            "url": "",
+            "ref": "v1.0.0"
+          },
+          "stats": {},
+          "tier": "core",
+          "status": "available",
+          "governance_capabilities": {
+            "gyanam.tool.register": {
+              "handler": "gyanam.services.tool_registry:register_tool",
+              "description": "Register for gyanam"
+            },
+            "gyanam.context.register": {
+              "handler": "gyanam.services.context_engine:register_provider",
+              "description": "Register for gyanam"
+            },
+            "gyanam.intent.register": {
+              "handler": "gyanam.services.intent:register_intent_examples",
+              "description": "Register for gyanam"
+            },
+            "gyanam.rag.ingest": {
+              "handler": "gyanam.services.rag:ingest_document",
+              "description": "Ingest for gyanam"
+            }
+          }
+        }
+      }
+    },
+    "muulam": {
+      "latest": "1.0.0",
+      "versions": {
+        "1.0.0": {
+          "label": "muulam",
+          "description": "Modular FastAPI app framework — config-driven package composition with i18n",
+          "category": "other",
+          "requires": [],
+          "optional": [],
+          "provides": [],
+          "source": {
+            "type": "git",
+            "url": "",
+            "ref": "v1.0.0"
+          },
+          "stats": {},
+          "tier": "core",
+          "status": "available",
+          "governance_capabilities": {
+            "muulam.config.register": {
+              "handler": "muulam.core.config:register_config",
+              "description": "Register for muulam"
+            }
+          }
+        }
+      }
+    },
+    "mandi": {
+      "latest": "1.0.0",
+      "versions": {
+        "1.0.0": {
+          "label": "Lochan Mandi -- Package Marketplace",
+          "description": "Admin UI and registry for the Lochan package marketplace",
+          "category": "extension",
+          "requires": [
+            "trishul",
+            "abhilekh"
+          ],
+          "optional": [],
+          "provides": [
+            "package_registry",
+            "package_management"
+          ],
+          "source": {
+            "type": "git",
+            "url": "https://github.com/ssnukala/lochan",
+            "ref": "v1.0.0"
+          },
+          "stats": {
+            "models": [
+              "mn_installed_packages"
+            ],
+            "tools_count": 1,
+            "routes_count": 10,
+            "has_frontend": true,
+            "has_seeds": true
+          },
+          "tier": "core",
+          "status": "available"
+        }
+      }
+    },
+    "anvaya": {
+      "latest": "1.0.0",
+      "versions": {
+        "1.0.0": {
+          "label": "anvaya",
+          "description": "Declarative state machine engine — lifecycle definitions, guard registries, transitions, audit trails",
+          "category": "other",
+          "requires": [
+            "muulam"
+          ],
+          "optional": [],
+          "provides": [],
+          "source": {
+            "type": "git",
+            "url": "",
+            "ref": "v1.0.0"
+          },
+          "stats": {},
+          "tier": "core",
+          "status": "available",
+          "governance_capabilities": {
+            "anvaya.lifecycle.register": {
+              "handler": "anvaya.core.state_machine:register_lifecycle",
+              "description": "Register for anvaya"
+            },
+            "anvaya.guard.register": {
+              "handler": "anvaya.core.guard_registry:register_guard",
+              "description": "Register for anvaya"
+            },
+            "anvaya.hook.register": {
+              "handler": "anvaya.core.hook_registry:register_hook",
+              "description": "Register for anvaya"
+            }
+          }
+        }
+      }
+    },
+    "abhilekh": {
+      "latest": "1.0.0",
+      "versions": {
+        "1.0.0": {
+          "label": "abhilekh",
+          "description": "Schema-driven CRUD engine for FastAPI + SQLAlchemy",
+          "category": "other",
+          "requires": [
+            "trishul"
+          ],
+          "optional": [],
+          "provides": [],
+          "source": {
+            "type": "git",
+            "url": "",
+            "ref": "v1.0.0"
+          },
+          "stats": {},
+          "tier": "core",
+          "status": "available",
+          "governance_capabilities": {
+            "abhilekh.schema.register": {
+              "handler": "abhilekh.services.registry:register_with_abhilekh",
+              "description": "Register a pyCRUD schema for immediate CRUD access"
+            },
+            "abhilekh.schema.enrich": {
+              "handler": "abhilekh.services.schema_enricher:enrich_schema",
+              "description": "Run schema enricher for auto-derived UI hints (92% coverage)"
+            },
+            "abhilekh.schema.unregister": {
+              "handler": "abhilekh.services.registry:unregister_from_abhilekh",
+              "description": "Remove a schema from pyCRUD (on archive/disable)"
+            }
+          }
+        }
+      }
+    },
+    "shabd": {
+      "latest": "1.0.0",
+      "versions": {
+        "1.0.0": {
+          "label": "Shabd — Translation Dictionary Service",
+          "description": "SQLite-backed translation dictionary service with Wiktionary seeding support",
+          "category": "language",
+          "requires": [
+            "muulam"
+          ],
+          "optional": [],
+          "provides": [
+            "word-translation",
+            "batch-translation",
+            "dictionary-stats"
+          ],
+          "source": {
+            "type": "git",
+            "url": "https://github.com/ssnukala/lochan-shabd",
+            "ref": "v1.0.0"
+          },
+          "stats": {
+            "models": [],
+            "tools_count": 0,
+            "routes_count": 3,
+            "has_frontend": false,
+            "has_seeds": true
+          },
+          "tier": "core",
+          "status": "available",
+          "governance_capabilities": {
+            "shabd.locale.register": {
+              "handler": "shabd.services.locale_loader:register_locale",
+              "description": "Register for shabd"
+            },
+            "shabd.dictionary.seed": {
+              "handler": "shabd.services.shabd_service:seed_dictionary",
+              "description": "Seed for shabd"
+            }
+          }
+        }
+      }
+    },
+    "trishul": {
+      "latest": "1.0.0",
+      "versions": {
+        "1.0.0": {
+          "label": "trishul",
+          "description": "Framework security: authentication (Sepoy), row-level scope (Dristi), field & resource gate (Dvaara), persona roles & RBAC (Bhoomika)",
+          "category": "other",
+          "requires": [],
+          "optional": [],
+          "provides": [],
+          "source": {
+            "type": "git",
+            "url": "",
+            "ref": "v1.0.0"
+          },
+          "stats": {},
+          "tier": "core",
+          "status": "available",
+          "governance_capabilities": {
+            "trishul.scope.register": {
+              "handler": "trishul.dristi.scope_resolver:register_scope_rules",
+              "description": "Register for trishul"
+            },
+            "trishul.policy.register": {
+              "handler": "trishul.niyama.policy_registry:register_policy",
+              "description": "Register for trishul"
+            },
+            "trishul.audit.log": {
+              "handler": "trishul.agent.audit:log_security_event",
+              "description": "Log for trishul"
+            }
+          }
+        }
+      }
+    },
+    "vicharan": {
+      "latest": "1.0.0",
+      "versions": {
+        "1.0.0": {
+          "label": "Vicharan — Team Chat with AI",
+          "description": "Multi-user group chat with AI participant (@lochan) and LCD permission scoping",
+          "category": "communication",
+          "requires": [
+            "gyanam",
+            "trishul"
+          ],
+          "optional": [],
+          "provides": [
+            "team-channels",
+            "group-chat",
+            "ai-chat-participant",
+            "lcd-scoped-ai",
+            "websocket-messaging"
+          ],
+          "source": {
+            "type": "git",
+            "url": "https://github.com/ssnukala/lochan-vicharan",
+            "ref": "v1.0.0"
+          },
+          "stats": {
+            "models": [
+              "te_channels",
+              "te_channel_members",
+              "te_messages"
+            ],
+            "tools_count": 1,
+            "routes_count": 4,
+            "has_frontend": true,
+            "has_seeds": true
+          },
+          "tier": "core",
+          "status": "available",
+          "governance_capabilities": {
+            "vicharan.channel.create": {
+              "handler": "vicharan.services.channel_hub:create_channel",
+              "description": "Create for vicharan"
+            }
+          }
+        }
+      }
+    },
+    "ankana": {
+      "latest": "1.0.0",
+      "versions": {
+        "1.0.0": {
+          "label": "Ankana — Multi-Factor Scoring + Signal Detection",
+          "description": "Generic multi-factor entity scoring engine with score history, threshold-triggered signals, and automation",
+          "category": "intelligence",
+          "requires": [
+            "abhilekh"
+          ],
+          "optional": [
+            "gyanam",
+            "anvaya"
+          ],
+          "provides": [
+            "entity_scoring",
+            "score_history",
+            "signal_detection",
+            "threshold_triggers"
+          ],
+          "source": {
+            "type": "git",
+            "url": "https://github.com/ssnukala/lochan-ankana",
+            "ref": "v1.0.0"
+          },
+          "stats": {},
+          "tier": "mandi",
+          "status": "available",
+          "governance_capabilities": {
+            "ankana.profile.register": {
+              "handler": "ankana.services.scoring_service:register_profile",
+              "description": "Register for ankana"
+            },
+            "ankana.evaluator.register": {
+              "handler": "ankana.services.scoring_service:register_evaluator",
+              "description": "Register for ankana"
+            }
+          }
+        }
+      }
+    },
+    "chintan": {
+      "latest": "1.0.0",
+      "versions": {
+        "1.0.0": {
+          "label": "Chintan — Training & CE Tracking",
+          "description": "Training catalog, CE credit tracking, career pathways, and enrollment management",
+          "category": "wellbeing",
+          "requires": [
+            "abhilekh"
+          ],
+          "optional": [
+            "gyanam",
+            "nishchay"
+          ],
+          "provides": [
+            "training_catalog",
+            "career_pathways",
+            "enrollment_tracking"
+          ],
+          "source": {
+            "type": "git",
+            "url": "https://github.com/ssnukala/lochan-chintan",
+            "ref": "v1.0.0"
+          },
+          "stats": {
+            "models": [
+              "chi_training_resources",
+              "chi_career_pathways",
+              "chi_enrollments"
+            ],
+            "tools_count": 4,
+            "routes_count": 7,
+            "has_frontend": true,
+            "has_seeds": true
+          },
+          "tier": "mandi",
+          "status": "available",
+          "governance_capabilities": {
+            "chintan.course.register": {
+              "handler": "chintan.services.catalog_service:register_course",
+              "description": "Register for chintan"
+            },
+            "chintan.pathway.create": {
+              "handler": "chintan.services.pathway_service:create_pathway",
+              "description": "Create for chintan"
+            }
+          }
+        }
+      }
+    },
+    "guna": {
+      "latest": "1.0.0",
+      "versions": {
+        "1.0.0": {
+          "label": "Guna — Data Quality & Dedup",
+          "description": "Data quality engine — deduplication, freshness rules, completeness checks, merge workflows",
+          "category": "data",
+          "requires": [
+            "abhilekh"
+          ],
+          "optional": [
+            "gyanam",
+            "khoj"
+          ],
+          "provides": [
+            "data_quality",
+            "dedup_service",
+            "enrichment_service",
+            "merge_workflow"
+          ],
+          "source": {
+            "type": "git",
+            "url": "https://github.com/ssnukala/lochan-guna",
+            "ref": "v1.0.0"
+          },
+          "stats": {
+            "models": [
+              "gu_quality_issues",
+              "gu_dedup_matches",
+              "gu_enrichment_logs"
+            ],
+            "tools_count": 3,
+            "routes_count": 5,
+            "has_frontend": true,
+            "has_seeds": false
+          },
+          "tier": "mandi",
+          "status": "available",
+          "governance_capabilities": {
+            "guna.quality.configure": {
+              "handler": "guna.services.quality_service:configure_rules",
+              "description": "Configure for guna"
+            },
+            "guna.dedup.configure": {
+              "handler": "guna.services.dedup_service:configure",
+              "description": "Configure for guna"
+            }
+          }
+        }
+      }
+    },
+    "khoj": {
+      "latest": "1.0.0",
+      "versions": {
+        "1.0.0": {
+          "label": "Khoj — Social Profile Intelligence",
+          "description": "Social profile scanning — scans 24 platforms (LinkedIn, GitHub, ORCID, Doximity, etc.) for any registered entity type. Pluggable by any domain package.",
+          "category": "intelligence",
+          "requires": [],
+          "optional": [
+            "gyanam"
+          ],
+          "provides": [
+            "social-scanning",
+            "profile-enrichment",
+            "platform-detection",
+            "gdpr-compliance"
+          ],
+          "source": {
+            "type": "git",
+            "url": "https://github.com/ssnukala/lochan-khoj",
+            "ref": "v1.0.0"
+          },
+          "stats": {
+            "models": [
+              "kh_consent"
+            ],
+            "tools_count": 1,
+            "routes_count": 2,
+            "has_frontend": false,
+            "has_seeds": true
+          },
+          "tier": "common",
+          "status": "available",
+          "governance_capabilities": {
+            "khoj.scanner.register": {
+              "handler": "khoj.services.scan_registry:register_scanner",
+              "description": "Register for khoj"
+            },
+            "khoj.scan.execute": {
+              "handler": "khoj.services.scan_service:execute_scan",
+              "description": "Execute for khoj"
+            }
+          }
+        }
+      }
+    },
+    "nishchay": {
+      "latest": "1.0.0",
+      "versions": {
+        "1.0.0": {
+          "label": "Nishchay — Credential Lifecycle Engine",
+          "description": "Credential lifecycle management — expiration monitoring, verification audit trail, renewal workflows",
+          "category": "credential",
+          "requires": [
+            "abhilekh"
+          ],
+          "optional": [
+            "litevault",
+            "anvaya",
+            "gyanam"
+          ],
+          "provides": [
+            "credential_lifecycle",
+            "expiration_monitoring",
+            "verification_audit"
+          ],
+          "source": {
+            "type": "git",
+            "url": "https://github.com/ssnukala/lochan-nishchay",
+            "ref": "v1.0.0"
+          },
+          "stats": {
+            "models": [
+              "ni_credentials",
+              "ni_credential_monitors"
+            ],
+            "tools_count": 3,
+            "routes_count": 5,
+            "has_frontend": true,
+            "has_seeds": false
+          },
+          "tier": "mandi",
+          "status": "available",
+          "governance_capabilities": {
+            "nishchay.credential.register": {
+              "handler": "nishchay.services.credential_service:register_type",
+              "description": "Register for nishchay"
+            },
+            "nishchay.expiry.monitor": {
+              "handler": "nishchay.services.expiry_service:start_monitoring",
+              "description": "Monitor for nishchay"
+            }
+          }
+        }
+      }
+    },
+    "shodh": {
+      "latest": "1.0.0",
+      "versions": {
+        "1.0.0": {
+          "label": "Shodh — Lead Qualification Engine",
+          "description": "Lead Qualification Engine — multi-channel intake, scoring, qualification, routing, nurture, compliance",
+          "category": "intelligence",
+          "requires": [
+            "abhilekh",
+            "anvaya"
+          ],
+          "optional": [
+            "khoj"
+          ],
+          "provides": [
+            "lead-intake",
+            "lead-scoring",
+            "lead-qualification",
+            "lead-routing",
+            "lead-nurture",
+            "compliance-check",
+            "lead-analytics"
+          ],
+          "source": {
+            "type": "git",
+            "url": "https://github.com/ssnukala/lochan-shodh",
+            "ref": "v1.0.0"
+          },
+          "stats": {
+            "models": [
+              "sh_leads",
+              "sh_lead_tags",
+              "sh_lead_activities",
+              "sh_lead_scores",
+              "sh_scoring_rules",
+              "sh_rule_packs",
+              "sh_enrichment_cache",
+              "sh_lead_routing",
+              "sh_nurture_sequences",
+              "sh_nurture_enrollments",
+              "sh_compliance_logs",
+              "sh_lead_sources",
+              "sh_campaigns",
+              "sh_qualification_criteria"
+            ],
+            "tools_count": 1,
+            "routes_count": 10,
+            "has_frontend": true,
+            "has_seeds": true
+          },
+          "tier": "common",
+          "status": "available",
+          "governance_capabilities": {
+            "shodh.scoring.configure": {
+              "handler": "shodh.services.scoring_agent:configure",
+              "description": "Configure for shodh"
+            },
+            "shodh.routing.configure": {
+              "handler": "shodh.services.routing_agent:configure",
+              "description": "Configure for shodh"
+            },
+            "shodh.intake.configure": {
+              "handler": "shodh.services.intake_agent:configure",
+              "description": "Configure for shodh"
+            }
+          }
+        }
+      }
+    },
+    "suchana": {
+      "latest": "1.0.0",
+      "versions": {
+        "1.0.0": {
+          "label": "Suchana — Multi-Channel Messaging",
+          "description": "Multi-channel messaging engine — templates, campaigns, drip sequences, engagement tracking",
+          "category": "communication",
+          "requires": [
+            "abhilekh",
+            "trishul"
+          ],
+          "optional": [
+            "gyanam"
+          ],
+          "provides": [
+            "multi_channel_messaging",
+            "message_templates",
+            "drip_sequences",
+            "engagement_tracking",
+            "campaign_management"
+          ],
+          "source": {
+            "type": "git",
+            "url": "https://github.com/ssnukala/lochan-suchana",
+            "ref": "v1.0.0"
+          },
+          "stats": {
+            "models": [
+              "su_templates",
+              "su_messages",
+              "su_campaigns",
+              "su_sequences",
+              "su_sequence_steps",
+              "su_enrollments"
+            ],
+            "tools_count": 6,
+            "routes_count": 9,
+            "has_frontend": false,
+            "has_seeds": true
+          },
+          "tier": "framework",
+          "status": "available",
+          "governance_capabilities": {
+            "suchana.channel.register": {
+              "handler": "suchana.services.channel_registry:register_channel",
+              "description": "Register for suchana"
+            },
+            "suchana.template.register": {
+              "handler": "suchana.services.template_service:register_template",
+              "description": "Register for suchana"
+            },
+            "suchana.trigger.create": {
+              "handler": "suchana.services.trigger_service:create_trigger",
+              "description": "Create for suchana"
+            }
+          }
+        }
+      }
+    },
+    "autonex": {
+      "latest": "1.0.0",
+      "versions": {
+        "1.0.0": {
+          "label": "autonex",
+          "description": "AI-powered Automotive Dealer Management System",
+          "category": "other",
+          "requires": [
+            "trishul",
+            "abhilekh",
+            "litevault",
+            "anvaya"
+          ],
+          "optional": [],
+          "provides": [],
+          "source": {
+            "type": "git",
+            "url": "https://github.com/ssnukala/lochan-autonex",
+            "ref": "v1.0.0"
+          },
+          "stats": {},
+          "tier": "domain",
+          "status": "available",
+          "governance_capabilities": {
+            "autonex.inventory.configure": {
+              "handler": "autonex.services.inventory_service:configure",
+              "description": "Configure for autonex"
+            }
+          }
+        }
+      }
+    },
+    "duta": {
+      "latest": "0.1.0",
+      "versions": {
+        "0.1.0": {
+          "label": "duta",
+          "description": "Nervous system — M2M agent communication, signal routing, playbook execution, escalation. Framework-tier per nervous-system law 2026-05-10.",
+          "category": "other",
+          "requires": [
+            "trishul",
+            "abhilekh"
+          ],
+          "optional": [],
+          "provides": [],
+          "stats": {},
+          "tier": "framework",
+          "status": "available"
+        }
+      }
+    },
+    "flow": {
+      "latest": "1.0.0",
+      "versions": {
+        "1.0.0": {
+          "label": "flow",
+          "description": "Workflow orchestration engine — JSON-driven task and approval chains. Framework-tier per architectural law 2026-05-10.",
+          "category": "other",
+          "requires": [
+            "trishul",
+            "abhilekh"
+          ],
+          "optional": [],
+          "provides": [],
+          "stats": {},
+          "tier": "framework",
+          "status": "available"
+        }
+      }
+    },
+    "grahaka": {
+      "latest": "1.0.0",
+      "versions": {
+        "1.0.0": {
+          "label": "grahaka",
+          "description": "Grahaka — AI-first, Chat-first CRM. Agentic relationship intelligence with autonomous agents, multi-channel communication, and revenue forecasting.",
+          "category": "other",
+          "requires": [],
+          "optional": [],
+          "provides": [],
+          "source": {
+            "type": "git",
+            "url": "https://github.com/ssnukala/lochan-grahaka",
+            "ref": "v1.0.0"
+          },
+          "stats": {},
+          "tier": "domain",
+          "status": "available",
+          "governance_capabilities": {
+            "grahaka.pipeline.configure": {
+              "handler": "grahaka.services.pipeline_service:configure",
+              "description": "Configure for grahaka"
+            },
+            "grahaka.adapter.register": {
+              "handler": "grahaka.services.adapter_service:register_adapter",
+              "description": "Register for grahaka"
+            }
+          }
+        }
+      }
+    },
+    "lifelight": {
+      "latest": "1.0.0",
+      "versions": {
+        "1.0.0": {
+          "label": "lifelight",
+          "description": "Vedic astrology — Jyothishyam, Ganita, Vastu, Palmistry, Triangulation",
+          "category": "other",
+          "requires": [],
+          "optional": [],
+          "provides": [],
+          "source": {
+            "type": "git",
+            "url": "https://github.com/ssnukala/lifelight",
+            "ref": "v1.0.0"
+          },
+          "stats": {},
+          "tier": "domain",
+          "status": "available",
+          "governance_capabilities": {
+            "lifelight.system.register": {
+              "handler": "lifelight.services.system_registry:register",
+              "description": "Register for lifelight"
+            }
+          }
+        }
+      }
+    },
+    "longterm": {
+      "latest": "1.0.0",
+      "versions": {
+        "1.0.0": {
+          "label": "longterm",
+          "description": "AI-powered healthcare recruitment — candidate vetting, document collection, and submission packet assembly",
+          "category": "other",
+          "requires": [
+            "trishul",
+            "abhilekh",
+            "litevault"
+          ],
+          "optional": [],
+          "provides": [],
+          "source": {
+            "type": "git",
+            "url": "https://github.com/ssnukala/lochan-longterm",
+            "ref": "v1.0.0"
+          },
+          "stats": {},
+          "tier": "domain",
+          "status": "available",
+          "governance_capabilities": {
+            "longterm.placement.configure": {
+              "handler": "longterm.services.placement_service:configure",
+              "description": "Configure for longterm"
+            },
+            "longterm.compliance.configure": {
+              "handler": "longterm.services.compliance_service:configure",
+              "description": "Configure for longterm"
+            }
+          }
+        }
+      }
+    },
+    "mediaserver": {
+      "latest": "1.0.0",
+      "versions": {
+        "1.0.0": {
+          "label": "mediaserver",
+          "description": "AI-powered media server — photos, music, videos, books with face detection, semantic search, DLNA",
+          "category": "other",
+          "requires": [],
+          "optional": [],
+          "provides": [],
+          "source": {
+            "type": "git",
+            "url": "https://github.com/ssnukala/lochan-mediaserver",
+            "ref": "v1.0.0"
+          },
+          "stats": {},
+          "tier": "domain",
+          "status": "available"
+        }
+      }
+    },
+    "pestpro": {
+      "latest": "1.0.0",
+      "versions": {
+        "1.0.0": {
+          "label": "pestpro",
+          "description": "AI-powered pest control field service management — customers, work orders, routing, compliance, sales, billing",
+          "category": "other",
+          "requires": [
+            "trishul",
+            "abhilekh",
+            "litevault",
+            "anvaya"
+          ],
+          "optional": [],
+          "provides": [],
+          "source": {
+            "type": "git",
+            "url": "https://github.com/ssnukala/lochan-pestpro",
+            "ref": "v1.0.0"
+          },
+          "stats": {},
+          "tier": "domain",
+          "status": "available",
+          "governance_capabilities": {
+            "pestpro.service.configure": {
+              "handler": "pestpro.services.service_config:configure",
+              "description": "Configure for pestpro"
+            }
+          }
+        }
+      }
+    },
+    "realtor": {
+      "latest": "1.0.0",
+      "versions": {
+        "1.0.0": {
+          "label": "realtor",
+          "description": "AI-powered real estate brokerage platform — NAR Settlement compliant, buyer rep agreements, commission transparency, wire fraud prevention, 3-party offer negotiation, CMA valuation, deadline engine, and morning briefing",
+          "category": "other",
+          "requires": [
+            "trishul",
+            "abhilekh",
+            "litevault",
+            "anvaya",
+            "flow",
+            "gyanam"
+          ],
+          "optional": [],
+          "provides": [],
+          "source": {
+            "type": "git",
+            "url": "https://github.com/ssnukala/lochan-lokavit",
+            "ref": "v1.0.0"
+          },
+          "stats": {},
+          "tier": "domain",
+          "status": "available",
+          "governance_capabilities": {
+            "realtor.transaction.configure": {
+              "handler": "realtor.services.transaction_service:configure",
+              "description": "Configure for realtor"
+            },
+            "realtor.deadline.configure": {
+              "handler": "realtor.services.deadline_engine:configure",
+              "description": "Configure for realtor"
+            }
+          }
+        }
+      }
+    },
+    "regsevak": {
+      "latest": "1.0.0",
+      "versions": {
+        "1.0.0": {
+          "label": "regsevak",
+          "description": "Registration & Enrollment Management — Balavihar/CHYK class enrollment, family management, attendance tracking",
+          "category": "other",
+          "requires": [
+            "trishul",
+            "abhilekh"
+          ],
+          "optional": [],
+          "provides": [],
+          "source": {
+            "type": "git",
+            "url": "https://github.com/ssnukala/lochan-regsevak",
+            "ref": "v1.0.0"
+          },
+          "stats": {},
+          "tier": "domain",
+          "status": "available",
+          "governance_capabilities": {
+            "regsevak.registration.configure": {
+              "handler": "regsevak.services.registration_service:configure",
+              "description": "Configure for regsevak"
+            }
+          }
+        }
+      }
+    },
+    "vyaparam": {
+      "latest": "1.0.0",
+      "versions": {
+        "1.0.0": {
+          "label": "vyaparam",
+          "description": "Commerce & Payment — pluggable e-commerce infrastructure",
+          "category": "other",
+          "requires": [],
+          "optional": [],
+          "provides": [],
+          "source": {
+            "type": "git",
+            "url": "https://github.com/ssnukala/lochan-vyaparam",
+            "ref": "v1.0.0"
+          },
+          "stats": {},
+          "tier": "domain",
+          "status": "available",
+          "governance_capabilities": {
+            "vyaparam.catalog.configure": {
+              "handler": "commerce.services.catalog_service:configure",
+              "description": "Configure for vyaparam"
+            },
+            "vyaparam.payment.configure": {
+              "handler": "commerce.services.payment_service:configure",
+              "description": "Configure for vyaparam"
+            }
+          }
+        }
+      }
+    }
+  }
+}

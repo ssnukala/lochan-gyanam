@@ -12,7 +12,12 @@
 # Each is its own repo. The deploy script clones them at runtime.
 framework/
 tools/
-mandi/
+mandi/common/
+mandi/domain/
+mandi/_archive/
+mandi/roop/
+mandi/.daksh/
+mandi/.DS_Store
 apps/
 domainpkg/
 extpackages/
@@ -65,8 +70,13 @@ logs/
 .daksh/cache/
 .janch/
 
-# ── Generated indexes (rebuild from source) ──────────────────────────────
-mandi/mandi-index.json
+# ── Generated indexes ─────────────────────────────────────────────────────
+# mandi-index.json is GIT-TRACKED at gyanam/mandi/mandi-index.json (hand-curated
+# marketplace catalogue; closes the SPOF surfaced in §8.S4 2026-05-22 — analogous
+# to the .lochan-meta → ssnukala/claude resolution. See
+# [[feedback-lochan-meta-must-stay-git-tracked]]).
+# Future: when `daksh generate-mandi-index` ships, this file becomes regenerable
+# from packages/*/mandi.json and the gitignore comment will match reality.
 framework/lochan/frontend/src/data/mandi-catalog.json
 
 # ── Python ────────────────────────────────────────────────────────────────
