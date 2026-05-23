@@ -116,6 +116,99 @@ expect_success "" "ssnukala/lochan branch --show-current → exit 0" "ssnukala/l
 # claude repo without polluting parent shell cwd.
 expect_success "" "ssnukala/claude status → exit 0" "ssnukala/claude" status --short
 
+# ── Phase 2 — Feature A: commit-to-main guard via --confirm-main ───
+#
+# Tests A2/A3/A4/A5 run against ssnukala/claude (always on main).
+# A1 is the negative — commit on a feature branch should NOT trigger
+# the guard (lochan-gyanam this PR is on feat/...); a simple status
+# probe via lgit confirms the wrapper doesn't gate read-only ops.
+
+# A1: status (non-commit/push subcmd) on main → guard never fires
+expect_success "" "A1: read-only op on main → no guard fires" "ssnukala/claude" log --oneline -1
+
+# A2: commit on main WITHOUT --confirm-main → exit 6 PROTECTED_BRANCH
+expect_exit 6 "refuses 'git commit' on branch 'main' WITHOUT --confirm-main" \
+  "A2: commit on main no flag → exit 6 PROTECTED_BRANCH" \
+  "ssnukala/claude" commit -m "should-be-blocked"
+
+# A3: commit on main WITH --confirm-main → guard passes (git itself may
+# fail on "nothing to commit" or unknown flag; we just verify the gate
+# message shows the flag was honored).
+A3_STDERR="$(bash "$LGIT" ssnukala/claude commit --confirm-main --dry-run 2>&1 1>/dev/null || true)"
+if grep -qF -- "--confirm-main present → proceeding with 'git commit' on main" <<< "$A3_STDERR"; then
+  echo "${GREEN}PASS${RESET}: A3: commit on main WITH --confirm-main → guard passes (flag stripped)"
+  PASS=$((PASS + 1))
+else
+  echo "${RED}FAIL${RESET}: A3: expected bypass-message in stderr"
+  echo "  stderr: $A3_STDERR"
+  FAIL=$((FAIL + 1))
+fi
+
+# A4: push on main WITHOUT --confirm-main → exit 6 PROTECTED_BRANCH
+expect_exit 6 "refuses 'git push' on branch 'main' WITHOUT --confirm-main" \
+  "A4: push on main no flag → exit 6 PROTECTED_BRANCH" \
+  "ssnukala/claude" push origin main
+
+# A5: push on main WITH --confirm-main → guard passes (we use --dry-run
+# so no actual remote push happens; gate-pass message is what we verify)
+A5_STDERR="$(bash "$LGIT" ssnukala/claude push --confirm-main --dry-run origin main 2>&1 1>/dev/null || true)"
+if grep -qF -- "--confirm-main present → proceeding with 'git push' on main" <<< "$A5_STDERR"; then
+  echo "${GREEN}PASS${RESET}: A5: push on main WITH --confirm-main → guard passes (flag stripped)"
+  PASS=$((PASS + 1))
+else
+  echo "${RED}FAIL${RESET}: A5: expected bypass-message in stderr"
+  echo "  stderr: $A5_STDERR"
+  FAIL=$((FAIL + 1))
+fi
+
+# ── Phase 2 — Feature B: worktree routing via <repo>@<chunk-id> ────
+
+# B1: @<non-existent-id> → exit 7 WORKTREE_NOT_FOUND
+expect_exit 7 "not found" \
+  "B1: @<nonexistent> → exit 7 WORKTREE_NOT_FOUND" \
+  "ssnukala/lochan@worktree-that-doesnt-exist-xyz" status
+
+# B2: @<existing-worktree> + status → exit 0 (uses w-chat-message-protocol-full-surface
+# fixture which is registered with the ssnukala/lochan primary)
+expect_success "" "B2: @<existing-worktree> status → exit 0" \
+  "ssnukala/lochan@w-chat-message-protocol-full-surface" status --short
+
+# B3: bad-shape WORKTREE_ID (contains '/') → exit 2 USAGE
+expect_exit 2 "basename-safe shape" \
+  "B3: @<bad-shape-id> → exit 2 USAGE" \
+  "ssnukala/lochan@bad/shape/id" status
+
+# ── Phase 2 — Feature C: create-worktree subcommand ────────────────
+
+# C1: create-worktree without chunk-id → exit 2 USAGE
+expect_exit 2 "requires a <chunk-id> argument" \
+  "C1: create-worktree no args → exit 2 USAGE" \
+  "ssnukala/lochan" create-worktree
+
+# C2: create-worktree where chunk-id collides with existing worktree
+# (w-chat-message-protocol-full-surface exists) → exit 8 WORKTREE_EXISTS
+expect_exit 8 "already exists" \
+  "C2: create-worktree <existing> → exit 8 WORKTREE_EXISTS" \
+  "ssnukala/lochan" create-worktree "w-chat-message-protocol-full-surface"
+
+# C3: create-worktree with @ syntax → exit 2 USAGE (subcommand takes its own chunk-id)
+expect_exit 2 "does not accept @<chunk-id>" \
+  "C3: create-worktree on @<id> → exit 2 USAGE (no @ syntax)" \
+  "ssnukala/lochan@some-id" create-worktree "another-id"
+
+# ── Phase 2 — Feature D: delete-worktree refuses dirty ─────────────
+
+# D1: delete-worktree on a non-existent chunk-id → exit 7 WORKTREE_NOT_FOUND
+expect_exit 7 "does not exist" \
+  "D1: delete-worktree <nonexistent> → exit 7 WORKTREE_NOT_FOUND" \
+  "ssnukala/lochan" delete-worktree "worktree-that-doesnt-exist-xyz"
+
+# Note: testing D-dirty-refusal requires creating a synthetic dirty
+# worktree; skipped here to avoid polluting the workspace. The check
+# itself is exercised at runtime IF a session tries to delete a dirty
+# worktree (exit 9; --force bypasses).
+echo "(skipped: D-dirty-refusal — requires synthetic dirty worktree fixture)"
+
 echo "──────────────────────────────────────────────────────────────"
 echo "PASS=$PASS FAIL=$FAIL"
 
