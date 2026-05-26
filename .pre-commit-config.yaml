@@ -20,7 +20,12 @@ repos:
     hooks:
       - id: daksh-janch-changed
         name: daksh janch (changed packages only)
-        entry: framework/lochan/packages/daksh/daksh-cli janch --changed --ci --threshold 80
+        # §W-Wire-Janch-PR-3-Averaging-Retirement companion (ssnukala/lochan#689):
+        # migrated --ci --threshold 80 → --strict per Q-WIRE-JANCH-PR-3 Option A
+        # ratification. --strict is the canonical janch CI path post-#673 reusable
+        # workflow; --ci/--threshold averaging RETIRED on the janch subcommand
+        # per Principle #11 + [[feedback-no-shims-no-bandaids-longterm-fix-only]] BINDING.
+        entry: framework/lochan/packages/daksh/daksh-cli janch --changed --strict
         language: system
         pass_filenames: false
         always_run: true
