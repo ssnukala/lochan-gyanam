@@ -39,7 +39,9 @@ COPY framework/lochan/packages/duta/frontend/package.json ./packages/duta/fronte
 COPY framework/lochan/packages/flow/frontend/package.json ./packages/flow/frontend/
 COPY framework/lochan/packages/litevault/frontend/package.json ./packages/litevault/frontend/
 COPY framework/lochan/packages/muulam/frontend/package.json ./packages/muulam/frontend/
-COPY framework/lochan/packages/pratyuttar/frontend/package.json ./packages/pratyuttar/frontend/
+# pratyuttar/frontend retired via PR #742 (§W-Pratyuttar-Phase3b-Frontend-Retire);
+# Dockerfile sweep was missed at the time and surfaced via §W-Patent-Demo-
+# Empirical-fwprod01-E2E-Verify Layer 6 (2026-05-27).
 COPY framework/lochan/packages/trishul/frontend/package.json ./packages/trishul/frontend/
 COPY framework/lochan/packages/vicharan/frontend/package.json ./packages/vicharan/frontend/
 
