@@ -104,7 +104,15 @@ COPY --from=dev /app /app
 # Workspace symlinks inside /app/node_modules/abhilekh-react point at
 # /app/packages/abhilekh/frontend/ directly, copied via the COPY above.
 
-RUN pnpm add -D @playwright/test && \
+# `-w` (--workspace-root) flag is required by pnpm 10 (pinned in
+# 01-frontend-deps.Dockerfile). Without it pnpm raises
+# `ERR_PNPM_ADDING_TO_ROOT` because @playwright/test is being added at
+# the workspace root rather than to an individual workspace member —
+# which is exactly what we want here (Playwright is a test-base
+# devDependency shared across the workspace; not owned by any one
+# package). Surfaced via §W-Patent-Demo-Empirical-fwprod01-E2E-Verify
+# Layer 7 (2026-05-28).
+RUN pnpm add -D -w @playwright/test && \
     npx playwright install chromium && \
     npx playwright install-deps chromium
 
