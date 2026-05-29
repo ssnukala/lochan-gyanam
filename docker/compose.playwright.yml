@@ -1,0 +1,114 @@
+# compose.playwright.yml — opt-in Playwright screenshot sidecar
+# (mirrors compose.test.yml canonical opt-in pattern; Decision #5 WG-A4
+# extended 2026-05-29 to cover §W-FP11-E2E-fwprod01-Capture-Run cohort).
+#
+# §W-FP11-E2E-fwprod01-Capture-Run (2026-05-29) — canonical Playwright
+# sidecar for the FP11 patent-led-launch demo cohort screenshot capture.
+#
+# Composes with PR ssnukala/lochan#792 (canonical template at
+# `framework/lochan/docs/screenshots/patent_demos_clickable/compose.playwright.template.yml`
+# + CAPTURE-RUN.md operational README). Per founder direction 2026-05-28
+# "do not add it to prod" — this file is OPT-IN; the production chain
+# never runs Playwright.
+#
+# App-agnostic: uses ${COMPOSE_PROJECT_NAME}_app-network external network
+# so the sidecar attaches to whatever app's running services without
+# hardcoding fwprod01 / fwtest01 / etc.
+#
+# Three hard rules (mirrors compose.test.yml Decision #5 SHAPE):
+#   1. Prod chain never imports Playwright — separate image ancestry
+#      (mcr.microsoft.com/playwright lives OUTSIDE the lochan-* tree).
+#   2. Sidecar is opt-in via `-f compose.yml -f docker/compose.playwright.yml`.
+#   3. fwprod01 prod containers are never modified — only an EPHEMERAL
+#      sibling service runs against the existing app-network.
+#
+# Usage (any app):
+#
+#   # Default desktop captures
+#   cd /path/to/gyanam-workspace
+#   docker compose \
+#     -f apps/fwprod01/compose.yml \
+#     -f framework/lochan-gyanam/docker/compose.playwright.yml \
+#     run --rm playwright-screenshots
+#
+#   # Mobile (Pixel 7) captures
+#   docker compose \
+#     -f apps/fwprod01/compose.yml \
+#     -f framework/lochan-gyanam/docker/compose.playwright.yml \
+#     run --rm playwright-screenshots-mobile
+#
+# Or for a different app, just point at its compose.yml:
+#
+#   docker compose -f apps/fwtest01/compose.yml -f docker/compose.playwright.yml run --rm playwright-screenshots
+#
+# Output: PNG files land at framework/lochan/docs/screenshots/patent_demos_clickable/
+# (bind-mount; see volumes below).
+#
+# Composes-with:
+#   - ssnukala/lochan PR #782 (canonical Playwright spec + config)
+#   - ssnukala/lochan PR #792 (template + CAPTURE-RUN.md)
+#   - docker/compose.test.yml (Decision #5 canonical opt-in extension precedent)
+#   - [[feedback-no-shims-no-bandaids-longterm-fix-only]] BINDING (canonical
+#     compose extension > prod-image-pollution)
+#   - [[feedback-composition-pattern-over-parallel-mirror]] BINDING (single
+#     app-agnostic extension > N per-app compose files)
+
+services:
+
+  playwright-screenshots:
+    image: mcr.microsoft.com/playwright:v1.50.0-noble
+    profiles: [screenshots]
+
+    # Attach to the SAME network the parent compose project created
+    # (typically <app>_app-network — e.g. fwprod01_app-network).
+    networks:
+      - app-network
+
+    volumes:
+      # Bring the canonical Playwright config + e2e spec from the
+      # framework/lochan/ checkout into the container.
+      # Adjust source path to match your local layout.
+      - ../../framework/lochan/frontend:/tests:ro
+      # Screenshot output landing zone — host path matches canonical
+      # storage location pinned by PR #782 §A.5 invariant.
+      - ../../framework/lochan/docs/screenshots/patent_demos_clickable:/screenshots:rw
+
+    environment:
+      # Resolves to the parent app's frontend service via Docker DNS.
+      # Default points at the canonical fwprod01 frontend service name;
+      # override at run-time for other apps.
+      - BASE_URL=${PLAYWRIGHT_BASE_URL:-http://fwprod01-frontend-1:3000}
+      - PLAYWRIGHT_BROWSERS_PATH=/ms-playwright
+
+    working_dir: /tests
+
+    # SCREENSHOT_DIR resolves from __dirname (/tests/e2e/) → /tests/../docs/screenshots/patent_demos_clickable
+    # which is the bind-mounted host path framework/lochan/docs/screenshots/patent_demos_clickable.
+    command: >
+      sh -c "
+        echo '[playwright-sidecar] Desktop screenshot capture starting...';
+        echo '[playwright-sidecar] BASE_URL = '$$BASE_URL;
+        npx playwright test --project=screenshots --config=/tests/playwright.config.ts || true;
+        echo '[playwright-sidecar] Desktop capture complete. Outputs at /screenshots/.';
+        ls -la /screenshots/ | head -20
+      "
+
+  playwright-screenshots-mobile:
+    extends:
+      service: playwright-screenshots
+    command: >
+      sh -c "
+        echo '[playwright-sidecar] Mobile (Pixel 7) screenshot capture starting...';
+        echo '[playwright-sidecar] BASE_URL = '$$BASE_URL;
+        npx playwright test --project=screenshots-mobile --config=/tests/playwright.config.ts || true;
+        echo '[playwright-sidecar] Mobile capture complete. Outputs at /screenshots/.';
+        ls -la /screenshots/ | head -20
+      "
+
+networks:
+  # External network reference — created by the parent app's compose.yml.
+  # Pattern matches compose.test.yml + Docker's auto-naming convention:
+  # `${COMPOSE_PROJECT_NAME}_app-network`. For fwprod01 → fwprod01_app-network.
+  app-network:
+    external: true
+    name: ${COMPOSE_PROJECT_NAME}_app-network
