@@ -104,16 +104,25 @@ COPY --from=dev /app /app
 # Workspace symlinks inside /app/node_modules/abhilekh-react point at
 # /app/packages/abhilekh/frontend/ directly, copied via the COPY above.
 
-# `-w` (--workspace-root) flag is required by pnpm 10 (pinned in
-# 01-frontend-deps.Dockerfile). Without it pnpm raises
-# `ERR_PNPM_ADDING_TO_ROOT` because @playwright/test is being added at
-# the workspace root rather than to an individual workspace member —
-# which is exactly what we want here (Playwright is a test-base
-# devDependency shared across the workspace; not owned by any one
-# package). Surfaced via §W-Patent-Demo-Empirical-fwprod01-E2E-Verify
-# Layer 7 (2026-05-28).
-RUN pnpm add -D -w @playwright/test && \
-    npx playwright install chromium && \
+# Day-7 §6.5W Layer-3 chromium catalog pin (2026-05-30): REMOVED
+# `pnpm add -D -w @playwright/test` here. The dev stage's
+# `pnpm install --frozen-lockfile --offline` (line 42) already installs
+# @playwright/test per `pnpm-workspace.yaml` catalog → flowed into /app
+# via the `COPY --from=dev /app /app` above. Re-running `pnpm add -D`
+# pulled the LATEST @playwright/test ignoring the workspace catalog
+# pin, causing chromium version drift on every rebuild → capture-run
+# reproducibility broke per S3 Day-5 + Day-6 evidence. Per
+# [[feedback-no-shims-no-bandaids-longterm-fix-only]] BINDING: consume
+# the canonical lockfile-pinned version, do not introduce parallel
+# installs at later build stages.
+#
+# Historical context: previously this had `pnpm add -D -w
+# @playwright/test` here. The `-w` (--workspace-root) flag was added
+# in Layer-7 fix (2026-05-28; §W-Patent-Demo-Empirical-fwprod01-E2E-
+# Verify) because pnpm-10 raises `ERR_PNPM_ADDING_TO_ROOT` for root-
+# level adds. The deeper fix per Day-7 §6.5W: don't `add` at all;
+# the lockfile already has it.
+RUN npx playwright install chromium && \
     npx playwright install-deps chromium
 
 RUN mkdir -p /app/log /app/packages /tmp/pw-auth
