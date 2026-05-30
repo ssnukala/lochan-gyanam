@@ -43,6 +43,7 @@ util/*
 util/scripts/*
 !util/scripts/lgit.sh
 !util/scripts/test-lgit.sh
+!util/scripts/test-util-scripts-strict-mode.sh
 
 # ── Secrets — NEVER commit ───────────────────────────────────────────────
 .env
