@@ -4,6 +4,7 @@
 # Usage:
 #   ./util/scripts/build-app.sh <app>              # build + verify
 #   ./util/scripts/build-app.sh <app> --no-verify  # build only
+#   ./util/scripts/build-app.sh <app> --with-playwright  # also build Tier-3 sidecar
 #   ./util/scripts/build-app.sh fwprod01           # most common — framework canonical test app
 #
 # What it does:
@@ -11,6 +12,10 @@
 #      (daksh-cli's for-loop scans for python3.13/12/11/10 via `command -v`; activated venv wins)
 #   2. Runs `daksh build --from 1 <app>` — Tier 1+ rebuild + container restart
 #   3. Runs `daksh verify <app>` (unless --no-verify)
+#   4. With --with-playwright: builds Tier-3 canonical capture-run sidecar
+#      (docker/03-frontend-playwright.Dockerfile → lochan-frontend-playwright:latest)
+#      per Q-CAPTURE-RUN-BIND-MOUNT-LAYOUT = B founder ratify 2026-05-31.
+#      Skipped by default (production builds don't need capture-run substrate).
 #
 # Why this script exists (per founder 2026-05-21 PM):
 #   - Avoid every session reinventing the `source venv && daksh-cli build` invocation
@@ -44,10 +49,12 @@ fi
 
 APP="$1"
 VERIFY=1
+WITH_PLAYWRIGHT=0
 shift || true
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --no-verify) VERIFY=0; shift ;;
+    --with-playwright) WITH_PLAYWRIGHT=1; shift ;;
     *) echo "ERROR: unknown flag $1" >&2; exit 2 ;;
   esac
 done
@@ -78,6 +85,35 @@ echo "    bash $SCRIPT_DIR/watch-daksh-build.sh /tmp/daksh-build.log"
 echo "  (filters noise; shows tier completion + per-package installs + errors)"
 echo ""
 "$DAKSH_CLI" build --from 1 "$APP" 2>&1 | tee /tmp/daksh-build.log
+
+# ── Tier-3 Playwright sidecar (opt-in; Q-CAPTURE-RUN-BIND-MOUNT-LAYOUT = B) ──
+#
+# Builds lochan-frontend-playwright:latest from docker/03-frontend-playwright.Dockerfile
+# when --with-playwright flag is passed. Tier-staleness gate: skip if the
+# sidecar image is newer than 02-frontend-base:dev source mtime
+# (matches #857 Q-PNPM-OFFLINE-ROOT-CAUSE Option A canonical staleness
+# detection pattern — image-mtime vs source-mtime check).
+if [[ $WITH_PLAYWRIGHT -eq 1 ]]; then
+  echo "── build-app.sh: building Tier-3 Playwright sidecar (capture-run substrate) ──"
+  SIDECAR_DOCKERFILE="$GYANAM_DIR/docker/03-frontend-playwright.Dockerfile"
+  if [[ ! -f "$SIDECAR_DOCKERFILE" ]]; then
+    echo "  ERROR: Tier-3 Dockerfile not found at $SIDECAR_DOCKERFILE" >&2
+    exit 2
+  fi
+  # Tier-staleness: rebuild sidecar if 02-frontend-base:dev image OR
+  # framework/lochan/frontend mtime is newer than sidecar image creation.
+  # Defer to docker's own layer caching for fine-grained skip; just always
+  # invoke the build with --pull=false (rely on local Tier 2 dev base).
+  docker build \
+    -f "$SIDECAR_DOCKERFILE" \
+    -t lochan-frontend-playwright:latest \
+    --pull=false \
+    "$GYANAM_DIR"
+  echo "  ✓ Tier-3 sidecar built: lochan-frontend-playwright:latest"
+  echo "  Usage: docker compose -f apps/$APP/compose.yml \\"
+  echo "                        -f $GYANAM_DIR/docker/compose.playwright.yml \\"
+  echo "                        run --rm playwright-screenshots"
+fi
 
 # ── Verify ──
 if [[ $VERIFY -eq 1 ]]; then

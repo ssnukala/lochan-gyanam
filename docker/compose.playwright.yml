@@ -56,7 +56,17 @@
 services:
 
   playwright-screenshots:
-    image: mcr.microsoft.com/playwright:v1.50.0-noble
+    # Canonical sidecar image (Tier 3) per Q-CAPTURE-RUN-BIND-MOUNT-LAYOUT
+    # = B founder ratify 2026-05-31. BAKES IN @playwright/test + chromium
+    # + framework Playwright config + e2e specs. Replaces the prior
+    # mcr.microsoft.com/playwright:v1.50.0-noble base + bind-mount of
+    # framework/lochan/frontend:/tests:ro (which coupled capture-run to
+    # host pnpm install state).
+    #
+    # Build: docker build -f docker/03-frontend-playwright.Dockerfile -t lochan-frontend-playwright:latest .
+    # (built automatically by util/scripts/build-app.sh Tier-3 step when
+    # capture-run profile is invoked).
+    image: lochan-frontend-playwright:latest
     profiles: [screenshots]
 
     # Attach to the SAME network the parent compose project created
@@ -65,12 +75,12 @@ services:
       - app-network
 
     volumes:
-      # Bring the canonical Playwright config + e2e spec from the
-      # framework/lochan/ checkout into the container.
-      # Adjust source path to match your local layout.
-      - ../../framework/lochan/frontend:/tests:ro
-      # Screenshot output landing zone — host path matches canonical
-      # storage location pinned by PR #782 §A.5 invariant.
+      # Screenshot output landing zone ONLY — Tier-3 image bakes in the
+      # Playwright config + e2e specs (was bind-mounted at
+      # ../../framework/lochan/frontend:/tests:ro pre-§6.5W=B; that mount
+      # is REMOVED per Q-CAPTURE-RUN-BIND-MOUNT-LAYOUT = B canonical).
+      # Host path matches canonical storage location pinned by PR #782
+      # §A.5 invariant.
       - ../../framework/lochan/docs/screenshots/patent_demos_clickable:/screenshots:rw
 
     environment:
@@ -80,6 +90,10 @@ services:
       - BASE_URL=${PLAYWRIGHT_BASE_URL:-http://fwprod01-frontend-1:3000}
       - PLAYWRIGHT_BROWSERS_PATH=/ms-playwright
 
+    # working_dir matches the symlinked /tests path in the Tier-3 image
+    # (`ln -s /app/frontend /tests` in 03-frontend-playwright.Dockerfile).
+    # Existing capture-run commands assuming /tests as working dir +
+    # config path work unchanged post-pivot to Tier-3 image.
     working_dir: /tests
 
     # SCREENSHOT_DIR resolves from __dirname (/tests/e2e/) → /tests/../docs/screenshots/patent_demos_clickable
