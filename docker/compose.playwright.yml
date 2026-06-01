@@ -89,6 +89,13 @@ services:
       # override at run-time for other apps.
       - BASE_URL=${PLAYWRIGHT_BASE_URL:-http://fwprod01-frontend-1:3000}
       - PLAYWRIGHT_BROWSERS_PATH=/ms-playwright
+      # Per Q-SIDECAR-SCREENSHOT-DIR-PATH = β founder ratify 2026-05-31:
+      # spec.ts reads SCREENSHOT_DIR env var; defaulting to its
+      # canonical host-side path when unset. In the sidecar we override
+      # to /screenshots which IS the writable bind-mount above. Spec
+      # stays env-aware; image stays generic; default host behavior
+      # preserved when running outside the sidecar.
+      - SCREENSHOT_DIR=/screenshots
 
     # working_dir matches the symlinked /tests path in the Tier-3 image
     # (`ln -s /app/frontend /tests` in 03-frontend-playwright.Dockerfile).

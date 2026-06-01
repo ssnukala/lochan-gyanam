@@ -145,17 +145,31 @@ RUN pnpm install
 # canonical pattern; the reason this PR pivots from Alpine to bookworm-
 # slim is precisely so this command works (Alpine apk has no equivalent
 # upstream recipe).
+#
+# Per Q-SIDECAR-PLAYWRIGHT-BROWSERS-PATH ratify (Layer 11; canonical
+# reorder): `PLAYWRIGHT_BROWSERS_PATH` ENV must be declared BEFORE the
+# `playwright install chromium` RUN so the installer writes browser
+# binaries to the env-declared path. With the ENV set AFTER install,
+# the installer falls back to its default location and runtime lookups
+# (which use the env var) miss the binary. S5 empirical patch-test
+# confirmed: install needs the ENV pre-set; runtime needs the ENV too;
+# pre-setting before install satisfies both.
+ENV PLAYWRIGHT_BROWSERS_PATH=/ms-playwright
+
 RUN npx playwright install chromium && \
     npx playwright install-deps chromium
 
 # Screenshot output landing zone — bind-mount target in compose.playwright.yml
 # (`/screenshots`) needs a valid mount point. Actual screenshots written
 # here by Playwright then propagate via bind-mount to the host.
+#
+# Per Q-SIDECAR-SCREENSHOT-DIR-PATH = β founder ratify (sister to
+# spec.ts env-driven SCREENSHOT_DIR in ssnukala/lochan): compose
+# declares `SCREENSHOT_DIR=/screenshots` env so the env-aware spec
+# (default fallback preserves host behavior; env override directs
+# PNG writes here in the sidecar). The image stays generic; spec
+# stays env-aware.
 RUN mkdir -p /screenshots
-
-# Playwright browser cache path — pre-set to match the install location.
-# Playwright runtime reads this env var to locate chromium binary.
-ENV PLAYWRIGHT_BROWSERS_PATH=/ms-playwright
 
 # Default command is help — real capture-run invocations override via
 # compose.playwright.yml `command:` (the `npx playwright test
