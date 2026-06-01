@@ -51,27 +51,39 @@ RESET=$'\033[0m'
 pass() { echo "${GREEN}PASS${RESET}: $1"; PASS=$((PASS + 1)); }
 fail() { echo "${RED}FAIL${RESET}: $1"; FAIL=$((FAIL + 1)); }
 
-# ── §L.1 — Tier-3 Dockerfile exists + FROM correct base ──────────────
-test_l1_dockerfile_exists_and_extends_tier2_base() {
-  local desc="§L.1 Tier-3 Dockerfile exists at docker/03-frontend-playwright.Dockerfile + FROM lochan-frontend-base:dev"
+# ── §L.1 — Tier-3 Dockerfile exists + FROM canonical Debian base ─────
+test_l1_dockerfile_exists_and_uses_bookworm_slim() {
+  local desc="§L.1 Tier-3 Dockerfile exists + FROM node:22-bookworm-slim (canonical Playwright base; Q-CAPTURE-RUN-SIDECAR-ALPINE-COMPAT = β)"
   if [[ ! -f "$DOCKERFILE" ]]; then
     fail "$desc — file missing"
     return
   fi
-  if grep -qE "^FROM lochan-frontend-base:dev" "$DOCKERFILE"; then
+  # Per β fix-forward: independent Tier-3 base; node:22-bookworm-slim
+  # (NOT lochan-frontend-base:dev which is Alpine-derived)
+  if grep -qE "^FROM node:22-bookworm-slim" "$DOCKERFILE"; then
+    # Also verify the Alpine-derived base is NOT used (β explicitly
+    # rejects it because Alpine apk has no canonical install-deps recipe)
+    if grep -qE "^FROM lochan-frontend-base:dev" "$DOCKERFILE"; then
+      fail "$desc — canonical bookworm-slim base used BUT lochan-frontend-base:dev (Alpine-derived) ALSO present (β rejects it)"
+      return
+    fi
     pass "$desc"
   else
-    fail "$desc — FROM directive does not reference lochan-frontend-base:dev"
+    fail "$desc — FROM directive does not reference node:22-bookworm-slim"
   fi
 }
 
-# ── §L.2 — installs @playwright/test workspace-root ──────────────────
-test_l2_installs_playwright_test_workspace_root() {
-  local desc="§L.2 Dockerfile installs @playwright/test via pnpm add -D -w"
-  if grep -qE "pnpm add -D -w \"?@playwright/test" "$DOCKERFILE"; then
+# ── §L.2 — installs @playwright/test pinned to canonical version ─────
+test_l2_installs_playwright_test_pinned() {
+  local desc="§L.2 Dockerfile installs @playwright/test pinned to 1.48.0 (matches test-image-pins.json canonical version)"
+  # Per β fix-forward: sidecar IS the only workspace (no parent workspace-
+  # root); pnpm install reads devDependencies from local package.json.
+  # The pinned version 1.48.0 matches test-image-pins.json node_packages.
+  if grep -qE '"@playwright/test":\s*"1\.48\.0"' "$DOCKERFILE" && \
+     grep -qE "pnpm install" "$DOCKERFILE"; then
     pass "$desc"
   else
-    fail "$desc — pnpm add -D -w @playwright/test directive missing"
+    fail "$desc — @playwright/test version pin OR pnpm install missing"
   fi
 }
 
@@ -146,15 +158,27 @@ test_l7_dockerfile_has_substantive_docblock() {
   fi
 }
 
-echo "── Tier-3 Playwright sidecar substrate regression ──"
+# ── §L.8 — Dockerfile COPIES canonical specs (independent of Tier-2) ─
+test_l8_dockerfile_copies_canonical_specs() {
+  local desc="§L.8 Dockerfile COPIES framework Playwright config + e2e specs (independent Tier-3 IS the design; no Tier-2 dependency)"
+  if grep -qE "^COPY framework/lochan/frontend/playwright\.config\.ts" "$DOCKERFILE" && \
+     grep -qE "^COPY framework/lochan/frontend/e2e" "$DOCKERFILE"; then
+    pass "$desc"
+  else
+    fail "$desc — COPY directives for playwright.config.ts + e2e/ missing"
+  fi
+}
+
+echo "── Tier-3 Playwright sidecar substrate regression (β fix-forward) ──"
 echo ""
-test_l1_dockerfile_exists_and_extends_tier2_base
-test_l2_installs_playwright_test_workspace_root
+test_l1_dockerfile_exists_and_uses_bookworm_slim
+test_l2_installs_playwright_test_pinned
 test_l3_installs_chromium_browser
 test_l4_compose_uses_canonical_tier3_image
 test_l5_tests_bindmount_removed_screenshots_preserved
 test_l6_build_app_sh_declares_with_playwright_flag
 test_l7_dockerfile_has_substantive_docblock
+test_l8_dockerfile_copies_canonical_specs
 
 echo ""
 TOTAL=$((PASS + FAIL))
