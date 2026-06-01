@@ -44,6 +44,7 @@ util/scripts/*
 !util/scripts/lgit.sh
 !util/scripts/test-lgit.sh
 !util/scripts/test-util-scripts-strict-mode.sh
+!util/scripts/test-capture-run-sidecar-substrate.sh
 
 # ── Secrets — NEVER commit ───────────────────────────────────────────────
 .env
