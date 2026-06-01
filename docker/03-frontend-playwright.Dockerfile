@@ -115,7 +115,24 @@ COPY framework/lochan/frontend/e2e ./e2e
 # 1.48.0; matches 02-frontend-base test stage + compose.playwright.yml
 # runtime expectations). Pinning here makes the sidecar reproducible
 # without depending on workspace lockfile drift.
-RUN printf '{\n  "name": "lochan-frontend-playwright-sidecar",\n  "version": "0.0.0",\n  "private": true,\n  "devDependencies": { "@playwright/test": "1.48.0" }\n}\n' > package.json
+#
+# `"type": "module"` is REQUIRED — mirrors host
+# framework/lochan/frontend/package.json which declares `"type":
+# "module"` so the .ts/.tsx workspace is ESM-evaluated. Without it,
+# Node.js defaults to CommonJS evaluation for files loaded from
+# /tests/e2e/*.spec.ts and the canonical Playwright config's
+# `import.meta.url` triggers ReferenceError at parse time, blocking
+# capture-run. Per S5 empirical patch-test 2026-05-31:
+#
+#   - BEFORE: spec.ts ESM load fails (Node treats as CJS;
+#             import.meta.url ReferenceError)
+#   - AFTER:  Playwright loads + executes 60 tests (3 workers); spec
+#             files load as ESM per canonical module-resolution semantic
+#
+# Per Q-SIDECAR-PACKAGE-JSON-TYPE-MODULE founder ratify 2026-05-31 +
+# [[feedback-no-shims-no-bandaids-longterm-fix-only]] BINDING: 1-line
+# additive matching host module-resolution semantics canonically.
+RUN printf '{\n  "name": "lochan-frontend-playwright-sidecar",\n  "version": "0.0.0",\n  "private": true,\n  "type": "module",\n  "devDependencies": { "@playwright/test": "1.48.0" }\n}\n' > package.json
 
 # Install @playwright/test into the sidecar workspace. The sidecar IS
 # the only workspace (no parent workspace-root); plain `pnpm install`

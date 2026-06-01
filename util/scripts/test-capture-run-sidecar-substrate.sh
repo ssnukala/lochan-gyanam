@@ -169,7 +169,21 @@ test_l8_dockerfile_copies_canonical_specs() {
   fi
 }
 
-echo "── Tier-3 Playwright sidecar substrate regression (β fix-forward) ──"
+# ── §L.9 — sidecar package.json declares "type": "module" ────────────
+test_l9_sidecar_package_json_type_module() {
+  local desc="§L.9 Sidecar package.json heredoc declares \"type\": \"module\" (mirrors host framework/lochan/frontend/package.json; Q-SIDECAR-PACKAGE-JSON-TYPE-MODULE = ratified)"
+  # Verify the heredoc line includes "type": "module" — without it,
+  # Node.js evaluates spec.ts files as CommonJS and import.meta.url
+  # triggers ReferenceError at parse-time per S5 empirical patch-test
+  # 2026-05-31.
+  if grep -qE '"name": "lochan-frontend-playwright-sidecar".*"type": "module"' "$DOCKERFILE"; then
+    pass "$desc"
+  else
+    fail "$desc — \"type\": \"module\" key missing from sidecar package.json heredoc"
+  fi
+}
+
+echo "── Tier-3 Playwright sidecar substrate regression (β + type:module) ──"
 echo ""
 test_l1_dockerfile_exists_and_uses_bookworm_slim
 test_l2_installs_playwright_test_pinned
@@ -179,6 +193,7 @@ test_l5_tests_bindmount_removed_screenshots_preserved
 test_l6_build_app_sh_declares_with_playwright_flag
 test_l7_dockerfile_has_substantive_docblock
 test_l8_dockerfile_copies_canonical_specs
+test_l9_sidecar_package_json_type_module
 
 echo ""
 TOTAL=$((PASS + FAIL))
