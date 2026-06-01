@@ -183,7 +183,41 @@ test_l9_sidecar_package_json_type_module() {
   fi
 }
 
-echo "── Tier-3 Playwright sidecar substrate regression (β + type:module) ──"
+# ── §L.10 — ENV PLAYWRIGHT_BROWSERS_PATH precedes install RUN ────────
+test_l10_env_browsers_path_precedes_install() {
+  local desc="§L.10 ENV PLAYWRIGHT_BROWSERS_PATH precedes 'playwright install chromium' RUN (Q-SIDECAR-PLAYWRIGHT-BROWSERS-PATH; Layer 11)"
+  # Verify ENV declaration appears BEFORE the install RUN in line order
+  # so the installer writes browser binaries to the env-declared path
+  # (S5 empirical: install needs ENV pre-set; runtime needs ENV too).
+  local env_line
+  local install_line
+  env_line=$(grep -nE "^ENV PLAYWRIGHT_BROWSERS_PATH=" "$DOCKERFILE" | head -1 | cut -d: -f1)
+  install_line=$(grep -nE "^RUN npx playwright install chromium" "$DOCKERFILE" | head -1 | cut -d: -f1)
+  if [[ -z "$env_line" ]] || [[ -z "$install_line" ]]; then
+    fail "$desc — ENV or RUN line not found (env_line=$env_line install_line=$install_line)"
+    return
+  fi
+  if (( env_line < install_line )); then
+    pass "$desc (ENV at line $env_line; install RUN at line $install_line)"
+  else
+    fail "$desc — ENV at line $env_line is NOT BEFORE install RUN at line $install_line"
+  fi
+}
+
+# ── §L.11 — compose declares SCREENSHOT_DIR env (β config-driven) ────
+test_l11_compose_screenshot_dir_env() {
+  local desc="§L.11 compose.playwright.yml declares SCREENSHOT_DIR=/screenshots env (Q-SIDECAR-SCREENSHOT-DIR-PATH = β; sister to spec.ts env-driven default)"
+  # Verify SCREENSHOT_DIR env var is declared in the playwright-screenshots
+  # service environment block — pairs with spec.ts env-driven default
+  # (sister PR in ssnukala/lochan) to make image generic + spec env-aware.
+  if grep -qE "^\s+-\s+SCREENSHOT_DIR=/screenshots" "$COMPOSE_PLAYWRIGHT"; then
+    pass "$desc"
+  else
+    fail "$desc — SCREENSHOT_DIR=/screenshots env declaration missing from compose"
+  fi
+}
+
+echo "── Tier-3 Playwright sidecar substrate regression (β + type:module + L11 + L12) ──"
 echo ""
 test_l1_dockerfile_exists_and_uses_bookworm_slim
 test_l2_installs_playwright_test_pinned
@@ -194,6 +228,8 @@ test_l6_build_app_sh_declares_with_playwright_flag
 test_l7_dockerfile_has_substantive_docblock
 test_l8_dockerfile_copies_canonical_specs
 test_l9_sidecar_package_json_type_module
+test_l10_env_browsers_path_precedes_install
+test_l11_compose_screenshot_dir_env
 
 echo ""
 TOTAL=$((PASS + FAIL))
