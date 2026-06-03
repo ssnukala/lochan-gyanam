@@ -15,13 +15,13 @@
 #   daksh build --from 0 2>&1 | tee /tmp/daksh-build.log &
 #
 #   # 2. In another terminal (or this session), watch the milestones:
-#   bash util/scripts/watch-daksh-build.sh
+#   bash util/scripts/build/watch-daksh-build.sh
 #
 #   # Override the log path:
-#   bash util/scripts/watch-daksh-build.sh /path/to/build.log
+#   bash util/scripts/build/watch-daksh-build.sh /path/to/build.log
 #
 #   # Watch until the build exits (one-shot poll instead of live tail):
-#   bash util/scripts/watch-daksh-build.sh --once
+#   bash util/scripts/build/watch-daksh-build.sh --once
 #
 # What gets surfaced:
 #   ✓ lochan-deps-backend built (108s)            ← tier completion

@@ -7,7 +7,7 @@
 # counters + assertion helpers). Pure-bash test; no Python dependency.
 #
 # Why this exists (§W-Build-App-Sh-Strict-Mode-Regression-Test):
-#   - S3 Day-6 surfaced a CATCH that util/scripts/build-app.sh "swallows
+#   - S3 Day-6 surfaced a CATCH that util/scripts/build/build-app.sh "swallows
 #     daksh build non-zero exit codes". Empirical Step 4a Gate-2 verify
 #     (pipefail+tee synthetic test) REFUTED the swallow — build-app.sh
 #     has `set -euo pipefail` since Day-2; pipeline `daksh build | tee`
@@ -61,7 +61,7 @@ fail() { echo "${RED}FAIL${RESET}: $1"; FAIL=$((FAIL + 1)); }
 # ── §A.1 — build-app.sh declares `set -euo pipefail` ─────────────────
 test_a1_build_app_full_strict_mode() {
   local desc="§A.1 build-app.sh declares 'set -euo pipefail' at top"
-  if grep -q "^set -euo pipefail" "$SCRIPT_DIR/build-app.sh"; then
+  if grep -q "^set -euo pipefail" "$SCRIPT_DIR/build/build-app.sh"; then
     pass "$desc"
   else
     fail "$desc — missing or modified"
@@ -103,7 +103,7 @@ test_a3_empirical_pipefail_propagation() {
 test_a4_no_swallow_wrappers_on_daksh_pipe() {
   local desc="§A.4 build-app.sh daksh-build pipeline has no swallow wrappers"
   local daksh_line
-  daksh_line="$(grep -n 'DAKSH_CLI.*build' "$SCRIPT_DIR/build-app.sh" | grep -v '^#' | head -1)"
+  daksh_line="$(grep -n 'DAKSH_CLI.*build' "$SCRIPT_DIR/build/build-app.sh" | grep -v '^#' | head -1)"
   if [[ -z "$daksh_line" ]]; then
     fail "$desc — could not locate DAKSH_CLI build invocation line"
     return
@@ -121,7 +121,7 @@ test_a4_no_swallow_wrappers_on_daksh_pipe() {
   local line_num="${daksh_line%%:*}"
   local start=$((line_num - 5))
   [[ $start -lt 1 ]] && start=1
-  if sed -n "${start},${line_num}p" "$SCRIPT_DIR/build-app.sh" | grep -q "^set +e"; then
+  if sed -n "${start},${line_num}p" "$SCRIPT_DIR/build/build-app.sh" | grep -q "^set +e"; then
     fail "$desc — 'set +e' detected within 5 lines before daksh invocation"
     return
   fi
@@ -136,7 +136,7 @@ test_a5_build_app_doc_block_present() {
   # WHY it exists + memory-rule references. Pin that the doc block is present
   # to prevent accidental stripping.
   local doc_lines
-  doc_lines=$(awk '/^#!/{next} /^#/{count++; next} /^$/{next} {exit} END{print count+0}' "$SCRIPT_DIR/build-app.sh")
+  doc_lines=$(awk '/^#!/{next} /^#/{count++; next} /^$/{next} {exit} END{print count+0}' "$SCRIPT_DIR/build/build-app.sh")
   # Expect at least 15 comment lines (Usage + What it does + Why + Memory rules)
   if [[ "$doc_lines" -ge 15 ]]; then
     pass "$desc (doc-block lines=$doc_lines)"

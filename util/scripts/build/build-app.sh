@@ -2,10 +2,10 @@
 # build-app.sh — canonical wrapper to build + verify a Lochan app via daksh
 #
 # Usage:
-#   ./util/scripts/build-app.sh <app>              # build + verify
-#   ./util/scripts/build-app.sh <app> --no-verify  # build only
-#   ./util/scripts/build-app.sh <app> --with-playwright  # also build Tier-3 sidecar
-#   ./util/scripts/build-app.sh fwprod01           # most common — framework canonical test app
+#   ./util/scripts/build/build-app.sh <app>              # build + verify
+#   ./util/scripts/build/build-app.sh <app> --no-verify  # build only
+#   ./util/scripts/build/build-app.sh <app> --with-playwright  # also build Tier-3 sidecar
+#   ./util/scripts/build/build-app.sh fwprod01           # most common — framework canonical test app
 #
 # What it does:
 #   1. Sources the lochan venv (framework/lochan/.venv) so daksh-cli auto-picks the venv's python3
@@ -34,7 +34,8 @@ set -euo pipefail
 
 # ── Resolve paths ──
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-GYANAM_DIR="$(cd "$SCRIPT_DIR/../.." && pwd)"
+# SCRIPT_DIR = <gyanam>/util/scripts/build; GYANAM_DIR = <gyanam> (3 up)
+GYANAM_DIR="$(cd "$SCRIPT_DIR/../../.." && pwd)"
 FRAMEWORK_DIR="$GYANAM_DIR/framework/lochan"
 DAKSH_CLI="$FRAMEWORK_DIR/packages/daksh/daksh-cli"
 VENV_ACTIVATE="$FRAMEWORK_DIR/.venv/bin/activate"

@@ -25,22 +25,22 @@
 #        (../../framework/lochan/frontend:/tests:ro removed per
 #         Q-CAPTURE-RUN-BIND-MOUNT-LAYOUT = B canonical); /screenshots
 #        bind-mount preserved (writable output)
-#   §L.6 util/scripts/build-app.sh declares --with-playwright flag +
+#   §L.6 util/scripts/build/build-app.sh declares --with-playwright flag +
 #        builds Tier-3 sidecar when flag set
 #   §L.7 Dockerfile has substantive doc-block (founder Day-7 BINDING B);
 #        ≥20 comment lines documenting WHY (not WHAT)
 #
-# Usage: bash util/scripts/test-capture-run-sidecar-substrate.sh
+# Usage: bash util/scripts/build/test-capture-run-sidecar-substrate.sh
 # Exit:  0 on ALL PASS / non-zero with PASS/FAIL summary on any FAIL
 
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-# SCRIPT_DIR = <gyanam>/util/scripts; GYANAM_DIR = <gyanam>
-GYANAM_DIR="$(cd "$SCRIPT_DIR/../.." && pwd)"
+# SCRIPT_DIR = <gyanam>/util/scripts/build; GYANAM_DIR = <gyanam>
+GYANAM_DIR="$(cd "$SCRIPT_DIR/../../.." && pwd)"
 DOCKERFILE="$GYANAM_DIR/docker/03-frontend-playwright.Dockerfile"
 COMPOSE_PLAYWRIGHT="$GYANAM_DIR/docker/compose.playwright.yml"
-BUILD_APP_SH="$GYANAM_DIR/util/scripts/build-app.sh"
+BUILD_APP_SH="$GYANAM_DIR/util/scripts/build/build-app.sh"
 
 PASS=0
 FAIL=0
@@ -134,7 +134,7 @@ test_l5_tests_bindmount_removed_screenshots_preserved() {
 
 # ── §L.6 — build-app.sh declares --with-playwright flag ──────────────
 test_l6_build_app_sh_declares_with_playwright_flag() {
-  local desc="§L.6 util/scripts/build-app.sh declares --with-playwright flag + Tier-3 build invocation"
+  local desc="§L.6 util/scripts/build/build-app.sh declares --with-playwright flag + Tier-3 build invocation"
   if grep -qE -- "--with-playwright\) WITH_PLAYWRIGHT=1" "$BUILD_APP_SH" && \
      grep -qE "WITH_PLAYWRIGHT -eq 1" "$BUILD_APP_SH" && \
      grep -qE "docker build" "$BUILD_APP_SH" && \
