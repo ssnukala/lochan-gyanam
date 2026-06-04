@@ -44,6 +44,8 @@ util/scripts/*
 !util/scripts/lgit.sh
 !util/scripts/test-lgit.sh
 !util/scripts/test-util-scripts-strict-mode.sh
+!util/scripts/sleep-mode-setup.sh
+!util/scripts/wave-runner.sh
 !util/scripts/test-capture-run-sidecar-substrate.sh
 
 # ── Secrets — NEVER commit ───────────────────────────────────────────────
