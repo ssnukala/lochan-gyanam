@@ -83,6 +83,17 @@ if [[ -d "$BESPOKE_BACKEND" ]]; then
   done < <(find "$BESPOKE_BACKEND" -maxdepth 1 -name '*.json' -print0)
 fi
 
+# FLAT bespoke shape — locale files directly under <pkg>/locales/<locale>.json (no
+# frontend/backend split; e.g. shodh). Move them to canonical too.
+if [[ -d "$PKG_DIR/locales" ]]; then
+  run mkdir -p "$CANONICAL_DIR"
+  while IFS= read -r -d '' f; do
+    base="$(basename "$f")"
+    run "${GIT[@]}" mv "$f" "$CANONICAL_DIR/$base"
+    moved=$((moved + 1))
+  done < <(find "$PKG_DIR/locales" -maxdepth 1 -name '*.json' -print0)
+fi
+
 # remove the now-empty bespoke locales/ tree (frontend + backend dirs, then parent)
 for d in "$BESPOKE_FRONTEND" "$BESPOKE_BACKEND" "$PKG_DIR/locales"; do
   if [[ -d "$d" ]] && [[ -z "$(find "$d" -type f ! -name '.gitkeep' 2>/dev/null)" ]]; then
