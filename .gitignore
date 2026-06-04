@@ -47,6 +47,7 @@ util/scripts/*
 !util/scripts/sleep-mode-setup.sh
 !util/scripts/wave-runner.sh
 !util/scripts/test-capture-run-sidecar-substrate.sh
+!util/scripts/migrate-locales-to-canonical.sh
 
 # ── Secrets — NEVER commit ───────────────────────────────────────────────
 .env
