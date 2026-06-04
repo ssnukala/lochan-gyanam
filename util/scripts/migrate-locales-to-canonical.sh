@@ -30,9 +30,10 @@
 #   pattern   lochan/process/PATTERNS/canonical-autowire-i18n-locales.md
 #   check     janch locales-path-industry-standard (lochan #1028)
 #
-# NOTE ON git: this helper uses `git mv`/`git rm` directly (history-preserving codemod).
-#   It is run BY a session INSIDE an lgit-created worktree (the worktree's cwd is the repo),
-#   so the lgit-wrapper cwd-safety concern does not apply — paths are explicit + repo-local.
+# NOTE ON git: this helper uses `git mv`/`git rm` (history-preserving codemod), routed through
+#   `git -C <repo-root>` resolved from <pkg-dir> — so it acts on the package's OWN repo regardless
+#   of the caller's cwd (the lgit-wrapper lesson; a wrong cwd otherwise silently no-ops against the
+#   umbrella repo). Fails loud if <pkg-dir> is not inside a git repo.
 set -euo pipefail
 
 PKG_DIR="${1:-}"
@@ -50,6 +51,16 @@ BESPOKE_FRONTEND="$PKG_DIR/locales/frontend"
 BESPOKE_BACKEND="$PKG_DIR/locales/backend"
 CANONICAL_DIR="$PKG_DIR/frontend/src/locales"
 
+# Resolve the package's git repo root so `git mv`/`git rm` act on the RIGHT repo
+# regardless of the caller's cwd (the lgit-wrapper lesson — never depend on cwd; a
+# wrong cwd otherwise makes git mv a silent no-op against the umbrella repo).
+REPO_ROOT="$(git -C "$PKG_DIR" rev-parse --show-toplevel 2>/dev/null || true)"
+if [[ -z "$REPO_ROOT" ]]; then
+  echo "error: $PKG_DIR is not inside a git repo (cannot git mv/rm)" >&2
+  exit 2
+fi
+GIT=(git -C "$REPO_ROOT")
+
 run() {  # echo in dry-run; execute otherwise
   if [[ "$DRY_RUN" == "--dry-run" ]]; then echo "  [dry-run] $*"; else echo "  + $*"; "$@"; fi
 }
@@ -60,7 +71,7 @@ if [[ -d "$BESPOKE_FRONTEND" ]]; then
   # move every <locale>.json from the bespoke frontend dir to the canonical dir
   while IFS= read -r -d '' f; do
     base="$(basename "$f")"
-    run git mv "$f" "$CANONICAL_DIR/$base"
+    run "${GIT[@]}" mv "$f" "$CANONICAL_DIR/$base"
     moved=$((moved + 1))
   done < <(find "$BESPOKE_FRONTEND" -maxdepth 1 -name '*.json' -print0)
 fi
@@ -68,7 +79,7 @@ fi
 # backend locale files are RETIRED (backend is locale-agnostic — returns i18n keys)
 if [[ -d "$BESPOKE_BACKEND" ]]; then
   while IFS= read -r -d '' f; do
-    run git rm -q "$f"
+    run "${GIT[@]}" rm -q "$f"
   done < <(find "$BESPOKE_BACKEND" -maxdepth 1 -name '*.json' -print0)
 fi
 
