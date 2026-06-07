@@ -18,9 +18,19 @@
 framework/
 tools/
 mandi/
-apps/
+apps/*
+!apps/fwprod01/
 domainpkg/
 extpackages/
+
+# Inside apps/fwprod01/, only the workspace-canonical compose.dev.yml is
+# tracked. fwprod01 is the framework's canonical dev-mode app — its
+# compose.dev.yml carries bind-mounts to framework/lochan/* source paths
+# and must stay in sync with framework package layout (e.g., the
+# daksh/core/ ARC-8 §4 migration that broke its frontend bind-mount).
+# Precedent: util/scripts/lgit.sh negation pattern (2026-05-24).
+apps/fwprod01/*
+!apps/fwprod01/compose.dev.yml
 
 # ── Orphan workspace folders (not part of lochan-gyanam) ─────────────────
 # Each of these lives at the gyanam root but isn't this repo's concern.
