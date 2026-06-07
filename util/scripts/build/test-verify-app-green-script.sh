@@ -321,6 +321,94 @@ test_v11_gate3_zero_errors_not_false_positive() {
   pass "$desc"
 }
 
+# ── §V.12 — Gate-2 regex rejects WARNING lines as false-positives ─────
+# Build session MSG-042 2026-06-07: gate-2 false-RED'd on WARN-level
+# lines because the inclusion grep was case-insensitive (`-iE`) and
+# included lowercase descriptive words (`exception`/`critical`/`fatal`/
+# `unhandled`). A benign `WARNING: ConnectionPool exception retry`
+# message matched on the lowercase word `exception`, even though it's
+# not a Python `Exception:` print or `Traceback`. The fix tightens the
+# inclusion pattern to UPPERCASE + word-bounded canonical Python
+# `logging` level tokens (`ERROR`/`CRITICAL`/`FATAL`) + canonical
+# exception markers (`Traceback`/`Exception:`/`AssertionError`/
+# `[ERR]`). Case-sensitive (`-E`, not `-iE`) is the lever. Belt-and-
+# suspenders: exclusion grep also drops lines whose first colon-
+# delimited prefix is WARN/WARNING.
+#
+# This test pins both axes:
+#   1. SOURCE pattern: gate-2 grep uses `-E` (NOT `-iE`) on inclusion;
+#      lowercase tokens (`exception`/`critical`/`fatal`/`unhandled`)
+#      do NOT appear as standalone alternatives in the inclusion grep.
+#   2. FUNCTIONAL matrix: synthesize WARN + ERROR + Traceback lines and
+#      run the literal regex from the script against them. WARN lines
+#      must NOT match; real-error lines MUST match.
+test_v12_gate2_warn_not_matched_as_error() {
+  local desc="§V.12 Gate-2 backend-log regex rejects WARNING lines as false-positives (MSG-042 2026-06-07)"
+  # Static check 1: gate-2 inclusion grep must be case-SENSITIVE.
+  # Look for `grep -E 'Traceback|Exception:` (case-sensitive flag, with
+  # the canonical inclusion pattern's leading tokens). The pre-fix
+  # pattern `grep -iE 'traceback|exception|assertionerror` MUST NOT
+  # appear (would mean the regression came back).
+  if ! grep -qE "grep -E 'Traceback\\|Exception:" "$VERIFY_GREEN_SH"; then
+    fail "$desc — gate-2 inclusion grep does NOT use case-sensitive '-E' with canonical 'Traceback|Exception:' prefix"
+    return
+  fi
+  if grep -qE "grep -iE 'traceback\\|exception\\|assertionerror" "$VERIFY_GREEN_SH"; then
+    fail "$desc — pre-fix pattern 'grep -iE traceback|exception|assertionerror' STILL LIVE (regression)"
+    return
+  fi
+  # Functional check: mirror the gate-2 inclusion + exclusion patterns
+  # exactly from verify-app-green.sh and run them against a synthetic
+  # backend-log fixture.
+  local inc_pattern='Traceback|Exception:|AssertionError|\[ERR ?\]|\bERROR\b|\bCRITICAL\b|\bFATAL\b'
+  local exc_pattern='sqlalchemy\.engine|no error|0 error|error_code.:.null|send_no_error|^[^:]*WARNING|^[^:]*\bWARN\b'
+  local fixture
+  fixture=$(printf '%s\n' \
+    'WARNING: deprecation notice' \
+    'WARNING: ConnectionPool exception retry' \
+    'WARNING: critical_section disabled' \
+    'WARNING:root:fatal_on_disconnect=false' \
+    'WARN  some.module: error_handler installed' \
+    'INFO: Found 0 errors' \
+    'ERROR: failed to connect' \
+    'Traceback (most recent call last):' \
+    'Exception: bare runtime crash' \
+    'AssertionError: test invariant broken' \
+    'CRITICAL:root:db_unreachable' \
+    'FATAL: unrecoverable boot failure')
+  local matched
+  matched=$(printf '%s\n' "$fixture" | grep -E "$inc_pattern" | grep -viE "$exc_pattern" || true)
+  # WARN/INFO lines MUST NOT appear in matched output (false-positive guard).
+  local fp_lines=(
+    'WARNING: deprecation notice'
+    'WARNING: ConnectionPool exception retry'
+    'WARNING: critical_section disabled'
+    'WARNING:root:fatal_on_disconnect=false'
+    'WARN  some.module: error_handler installed'
+    'INFO: Found 0 errors')
+  for line in "${fp_lines[@]}"; do
+    if printf '%s\n' "$matched" | grep -qxF "$line"; then
+      fail "$desc — false-positive: WARN/INFO line '$line' matched as error"
+      return
+    fi
+  done
+  # Real-error lines MUST all appear in matched output (false-negative guard).
+  local err_lines=(
+    'ERROR: failed to connect'
+    'Traceback (most recent call last):'
+    'Exception: bare runtime crash'
+    'AssertionError: test invariant broken'
+    'CRITICAL:root:db_unreachable'
+    'FATAL: unrecoverable boot failure')
+  for line in "${err_lines[@]}"; do
+    if ! printf '%s\n' "$matched" | grep -qxF "$line"; then
+      fail "$desc — false-negative: real-error line '$line' did NOT match"
+      return
+    fi
+  done
+  pass "$desc"
+}
+
 echo "── verify-app-green.sh substrate regression (MSG-025 canonical green-gate) ──"
 echo ""
 test_v1_script_exists_and_executable
@@ -334,6 +422,7 @@ test_v8_binary_verdict_exit_codes
 test_v9_substantive_docblock
 test_v10_no_set_e_multigate_aggregator
 test_v11_gate3_zero_errors_not_false_positive
+test_v12_gate2_warn_not_matched_as_error
 
 echo ""
 TOTAL=$((PASS + FAIL))
