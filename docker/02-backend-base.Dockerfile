@@ -109,7 +109,7 @@ COPY framework/lochan/packages/daksh/backend/daksh/core/runtime/install-packages
 COPY framework/lochan/packages/daksh/backend/daksh/core/runtime/install-domain-packages.py /app/scripts/
 COPY framework/lochan/packages/daksh/backend/daksh/core/runtime/install-framework-packages.py /app/scripts/
 COPY framework/lochan/packages/daksh/backend/daksh/core/runtime/dev-entrypoint.sh /app/scripts/
-COPY framework/lochan/packages/daksh/backend/daksh/generators/generate-manifest.py /app/scripts/
+COPY framework/lochan/packages/daksh/backend/daksh/core/generators/generate-manifest.py /app/scripts/
 
 # 5. Framework package configs + locales
 COPY --from=builder /build/packages/ /tmp/packages/
