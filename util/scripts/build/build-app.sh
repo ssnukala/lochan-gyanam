@@ -11,7 +11,15 @@
 #   1. Sources the lochan venv (framework/lochan/.venv) so daksh-cli auto-picks the venv's python3
 #      (daksh-cli's for-loop scans for python3.13/12/11/10 via `command -v`; activated venv wins)
 #   2. Runs `daksh build --from 1 <app>` — Tier 1+ rebuild + container restart
-#   3. Runs `daksh verify <app>` (unless --no-verify)
+#   3. Runs the 2-step verify (unless --no-verify):
+#        a) `daksh verify <app>`               — backend-centric gates
+#        b) `verify-app-green.sh <app>`        — FULL-STACK 5-gate green
+#           (containers + backend log + frontend log + backend /health 200
+#            + frontend / 200 AND Playwright sidecar render clean).
+#      Step (b) is the canonical "GREEN" definition per MSG-025 BINDING
+#      (founder ratify 2026-06-07): "fwprod is green when both frontend
+#      and backend logs are clean and the url actually pulls up the site
+#      without any errors". `daksh verify` alone is NOT sufficient.
 #   4. With --with-playwright: builds Tier-3 canonical capture-run sidecar
 #      (docker/03-frontend-playwright.Dockerfile → lochan-frontend-playwright:latest)
 #      per Q-CAPTURE-RUN-BIND-MOUNT-LAYOUT = B founder ratify 2026-05-31.
@@ -117,15 +125,58 @@ if [[ $WITH_PLAYWRIGHT -eq 1 ]]; then
 fi
 
 # ── Verify ──
+#
+# 2-step canonical verify (Build session MSG-025, founder ratify 2026-06-07):
+#
+#   Step 1: `daksh verify <app>` — backend-centric (health/manifest/schema/
+#           auth/patent endpoints). Necessary but NOT sufficient.
+#   Step 2: `verify-app-green.sh <app>` — FULL-STACK 5-gate green check
+#           (containers running + backend log clean + frontend log clean +
+#            backend /health 200 + frontend / 200 AND Playwright sidecar
+#            render clean).
+#
+# Founder directive (verbatim): "fwprod is green when both frontend and
+# backend logs are clean and the url actually pulls up the site without
+# any errors". `daksh verify` ALONE checks backend gates only — it ships
+# false-green when frontend is down OR the SPA errors on render
+# (MSG-013/017/018/022). Both gates run; either RED → exit 1.
+#
+# --no-verify skips BOTH steps. There is no half-verify; per
+# [[feedback-discipline-fix-validates-via-n-consecutive-clean-pr-streak]]
+# we don't want a build mode that runs "some" verification.
 if [[ $VERIFY -eq 1 ]]; then
-  echo "── build-app.sh: verifying $APP ──"
+  VERIFY_RC=0
+
+  echo "── build-app.sh: verifying $APP (Step 1/2 — daksh verify backend gates) ──"
   if "$DAKSH_CLI" verify "$APP"; then
-    echo "✓ build-app.sh: $APP BUILT + VERIFIED GREEN"
+    echo "✓ build-app.sh: $APP daksh verify PASSED (backend gates)"
   else
-    echo "✗ build-app.sh: $APP verify FAILED — see output above"
+    echo "✗ build-app.sh: $APP daksh verify FAILED — see output above"
     echo "  Common follow-ups:"
     echo "    - docker logs ${APP}-backend-1 --tail 60       # check actual errors"
     echo "    - docker compose -f apps/$APP/compose.dev.yml down -v && up -d  # if DB state corrupted"
+    VERIFY_RC=1
+  fi
+
+  echo ""
+  echo "── build-app.sh: verifying $APP (Step 2/2 — verify-app-green.sh full-stack 5-gate) ──"
+  VERIFY_GREEN_SH="$SCRIPT_DIR/verify-app-green.sh"
+  if [[ ! -x "$VERIFY_GREEN_SH" ]]; then
+    echo "✗ build-app.sh: verify-app-green.sh missing or not executable at $VERIFY_GREEN_SH" >&2
+    echo "  This script is the canonical FULL-STACK green check (MSG-025 BINDING)." >&2
+    exit 2
+  fi
+  if "$VERIFY_GREEN_SH" "$APP"; then
+    echo "✓ build-app.sh: $APP verify-app-green.sh PASSED (all 5 gates GREEN)"
+  else
+    echo "✗ build-app.sh: $APP verify-app-green.sh FAILED — see per-gate report above"
+    VERIFY_RC=1
+  fi
+
+  if [[ $VERIFY_RC -eq 0 ]]; then
+    echo "✓ build-app.sh: $APP BUILT + VERIFIED GREEN (daksh verify + verify-app-green.sh both PASS)"
+  else
+    echo "✗ build-app.sh: $APP verify FAILED — at least one of (daksh verify | verify-app-green.sh) RED"
     exit 1
   fi
 fi
