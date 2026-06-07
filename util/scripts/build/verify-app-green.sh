@@ -135,8 +135,12 @@ echo ""
 # ─────────────────────────────────────────────────────────────────────
 echo "[3/5] Frontend logs — no Vite/TypeScript errors"
 FE_LOG="$("${DC[@]}" logs frontend 2>&1)"
+# NOTE: `Found [1-9][0-9]* error` (NOT `Found [0-9]+ error`) — the looser
+# pattern false-RED'd on the CLEAN signal `[TypeScript] Found 0 errors`
+# (Build session MSG-032 §"Bug in the merged green gate itself" 2026-06-07).
+# Zero errors is exactly what we WANT; only N≥1 should trip the gate.
 FE_ERR="$(printf '%s\n' "$FE_LOG" \
-  | grep -iE 'ERROR\(TypeScript\)|Found [0-9]+ error|\[vite\][^a-z]*error|transform failed|failed to (resolve|load)|does not provide an export|has no exported member|Internal server error' )"
+  | grep -iE 'ERROR\(TypeScript\)|Found [1-9][0-9]* error|\[vite\][^a-z]*error|transform failed|failed to (resolve|load)|does not provide an export|has no exported member|Internal server error' )"
 if [[ -z "$FE_ERR" ]]; then
   pass "frontend logs clean"
 else

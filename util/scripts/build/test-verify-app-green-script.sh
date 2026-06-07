@@ -51,6 +51,14 @@
 #        aggregator pattern; -e would bail on first RED gate, defeating
 #        the multi-layer honest-disclosure requirement per
 #        [[feedback-multi-layer-bug-stack-honest-disclosure]])
+#   §V.11 Gate-3 frontend-log regex uses `Found [1-9][0-9]* error`
+#        (NOT `Found [0-9]+ error`) so the CLEAN TypeScript signal
+#        `Found 0 errors` does NOT false-RED gate 3. Pinned 2026-06-07
+#        per Build session MSG-032 §"Bug in the merged green gate
+#        itself": the prior pattern matched the literal clean line that
+#        tsc emits on success, marking every green frontend as RED.
+#        Synthetic false-positive matrix asserted: `Found 0 errors`
+#        must NOT match; `Found 1 error` + `Found 14 errors` must match.
 #
 # Usage: bash util/scripts/build/test-verify-app-green-script.sh
 # Exit:  0 on ALL PASS / non-zero with PASS/FAIL summary on any FAIL
@@ -268,6 +276,51 @@ test_v10_no_set_e_multigate_aggregator() {
   fi
 }
 
+# ── §V.11 — Gate-3 regex rejects `Found 0 errors` false-positive ──────
+# Build session MSG-032 §"Bug in the merged green gate itself" 2026-06-07:
+# the original `Found [0-9]+ error` matched tsc's CLEAN signal
+# `[TypeScript] Found 0 errors`, false-RED'ing every green frontend. The
+# 1-char fix `[0-9]+` → `[1-9][0-9]*` requires N≥1 errors before tripping.
+# This test pins:
+#   1. The script SOURCE uses the strict pattern (NOT the loose one).
+#   2. Functional behavior matrix: `Found 0 errors` does NOT match;
+#      `Found 1 error` + `Found 14 errors` DO match (synthetic feed).
+test_v11_gate3_zero_errors_not_false_positive() {
+  local desc="§V.11 Gate-3 frontend-log regex uses 'Found [1-9][0-9]* error' (clean 'Found 0 errors' must NOT trip gate; N≥1 must)"
+  # Static check: strict pattern present on a grep-invocation line; loose
+  # pattern absent on any grep-invocation line. (Documentation/comments
+  # that REFERENCE the old loose pattern as an anti-example are fine —
+  # we only forbid the loose pattern being live in an actual grep call.)
+  if ! grep -qE 'grep .*Found \[1-9\]\[0-9\]\* error' "$VERIFY_GREEN_SH"; then
+    fail "$desc — strict pattern 'Found [1-9][0-9]* error' missing from gate-3 grep invocation"
+    return
+  fi
+  if grep -qE 'grep .*Found \[0-9\]\+ error' "$VERIFY_GREEN_SH"; then
+    fail "$desc — loose pattern 'Found [0-9]+ error' STILL LIVE in a grep invocation (would false-RED on 'Found 0 errors')"
+    return
+  fi
+  # Functional check: extract the exact gate-3 grep line from the script
+  # and feed it the synthetic matrix. Mirror the script's regex by
+  # constructing the same `grep -iE` invocation here.
+  local gate3_pattern='ERROR\(TypeScript\)|Found [1-9][0-9]* error|\[vite\][^a-z]*error|transform failed|failed to (resolve|load)|does not provide an export|has no exported member|Internal server error'
+  # Synthetic line 1: clean tsc signal — MUST NOT match.
+  if printf '%s\n' '[TypeScript] Found 0 errors' | grep -iqE "$gate3_pattern"; then
+    fail "$desc — synthetic 'Found 0 errors' STILL matches gate-3 regex (false-positive not fixed)"
+    return
+  fi
+  # Synthetic line 2: real 1-error signal — MUST match.
+  if ! printf '%s\n' '[TypeScript] Found 1 error' | grep -iqE "$gate3_pattern"; then
+    fail "$desc — synthetic 'Found 1 error' does NOT match gate-3 regex (false-negative)"
+    return
+  fi
+  # Synthetic line 3: real 14-error signal (MSG-022 incident) — MUST match.
+  if ! printf '%s\n' '[TypeScript] Found 14 errors' | grep -iqE "$gate3_pattern"; then
+    fail "$desc — synthetic 'Found 14 errors' does NOT match gate-3 regex (false-negative)"
+    return
+  fi
+  pass "$desc"
+}
+
 echo "── verify-app-green.sh substrate regression (MSG-025 canonical green-gate) ──"
 echo ""
 test_v1_script_exists_and_executable
@@ -280,6 +333,7 @@ test_v7_build_app_sh_no_verify_flag_skips_both
 test_v8_binary_verdict_exit_codes
 test_v9_substantive_docblock
 test_v10_no_set_e_multigate_aggregator
+test_v11_gate3_zero_errors_not_false_positive
 
 echo ""
 TOTAL=$((PASS + FAIL))
