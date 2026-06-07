@@ -17,6 +17,17 @@ __pycache__/
 *.bak
 dist/
 build/
+# Exception: util/scripts/build/ is our canonical build-wrapper-script
+# subfolder (build-app.sh + verify-app-green.sh + watch-daksh-build.sh
+# + test-*.sh). It is SOURCE, not a generated artifact. The `build/`
+# ignore above targets Python/JS dist-style output dirs; force-include
+# our scripts folder so new files like verify-app-green.sh aren't
+# silently dropped from git tracking. (Discovered 2026-06-07 when the
+# build session's verify-app-green.sh was author-but-untracked because
+# the broad `build/` rule masked it — pinned by §V.5 in
+# util/scripts/build/test-verify-app-green-script.sh.)
+!scripts/build/
+!scripts/build/**
 
 # ── Secrets (defense in depth — nothing here should ship secrets) ──
 .env
