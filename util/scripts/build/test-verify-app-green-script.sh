@@ -26,10 +26,15 @@
 #        URL / FRONTEND URL+render)
 #   §V.3 Script resolves backend + frontend ports dynamically via
 #        `docker compose port` (NOT hardcoded :5001 / :3000 host ports)
-#   §V.4 Script references the canonical Playwright sidecar image
-#        (lochan-frontend-playwright:latest) for the render gate +
-#        fails-with-build-hint when the image is missing (per
-#        [[feedback-no-silent-try-except-fail-loudly-at-boot]] BINDING)
+#   §V.4 Gate 5 DELEGATES to take-screenshots.sh --render-check (strict
+#        visual validation: sidecar launch + per-PNG size/dimension
+#        checks + log-window re-grep). The sidecar-image reference and
+#        fail-loud build-hint live INSIDE take-screenshots.sh per the
+#        composition pattern (verify-app-green.sh aggregates verdicts;
+#        take-screenshots.sh owns the sidecar substrate). Refactored
+#        2026-06-07 follow-up to gyanam#39 per founder verbatim:
+#        "the session has to launch the side car and ... screenshots
+#        show actual lochan screens".
 #   §V.5 util/.gitignore force-includes util/scripts/build/ subfolder
 #        so future verify-app-green.sh-style edits aren't silently
 #        masked by the broad `build/` ignore rule
@@ -133,23 +138,29 @@ test_v3_dynamic_port_resolution() {
   fi
 }
 
-# ── §V.4 — Playwright sidecar image referenced + fail-loud on missing ─
-test_v4_playwright_sidecar_reference_and_failloud() {
-  local desc="§V.4 Script references canonical Playwright sidecar image (lochan-frontend-playwright:latest) + fails-loud-with-build-hint when image missing"
-  if ! grep -qE 'lochan-frontend-playwright:latest' "$VERIFY_GREEN_SH"; then
-    fail "$desc — canonical sidecar image reference missing"
+# ── §V.4 — Gate 5 delegates to take-screenshots.sh --render-check ────
+# (Refactored 2026-06-07 followup to gyanam#39: the sidecar image reference
+# + image-inspect + build-hint logic moved INTO take-screenshots.sh per
+# composition pattern. verify-app-green.sh Gate 5 now COMPOSES that script;
+# take-screenshots.sh is the substrate that owns sidecar launch + strict
+# visual validation. See test-take-screenshots-script.sh for the pins on
+# the sidecar-image reference + fail-loud behavior.)
+test_v4_gate5_delegates_to_take_screenshots() {
+  local desc="§V.4 Gate 5 invokes take-screenshots.sh --render-check (strict visual validation; sidecar substrate moved to take-screenshots.sh)"
+  if ! grep -qE 'take-screenshots\.sh' "$VERIFY_GREEN_SH"; then
+    fail "$desc — take-screenshots.sh invocation missing from verify-app-green.sh"
     return
   fi
-  # Must check `docker image inspect` for the sidecar + emit a build-hint
-  # message ("build it" + the build-app.sh invocation) on miss. This
-  # encodes [[feedback-no-silent-try-except-fail-loudly-at-boot]]: don't
-  # silently SKIP gate 5 when sidecar absent — fail the gate with a path
-  # to remediation.
-  if grep -qE 'docker image inspect' "$VERIFY_GREEN_SH" && \
-     grep -qE 'build-app\.sh .* --with-playwright' "$VERIFY_GREEN_SH"; then
+  if ! grep -qE '\-\-render-check' "$VERIFY_GREEN_SH"; then
+    fail "$desc — --render-check flag not passed to take-screenshots.sh (would run full capture mode)"
+    return
+  fi
+  # Must guard with `if [[ ! -x ... ]]` (fail-loud per [[feedback-no-silent-try-except-fail-loudly-at-boot]])
+  if grep -qE 'TAKE_SCREENSHOTS_SH=' "$VERIFY_GREEN_SH" && \
+     grep -qE 'if \[\[ ! -x "\$TAKE_SCREENSHOTS_SH" \]\]' "$VERIFY_GREEN_SH"; then
     pass "$desc"
   else
-    fail "$desc — image-inspect guard OR build-hint message missing (silent-skip risk)"
+    fail "$desc — fail-loud guard for missing take-screenshots.sh missing (silent-skip risk)"
   fi
 }
 
@@ -262,7 +273,7 @@ echo ""
 test_v1_script_exists_and_executable
 test_v2_five_gate_headers_present
 test_v3_dynamic_port_resolution
-test_v4_playwright_sidecar_reference_and_failloud
+test_v4_gate5_delegates_to_take_screenshots
 test_v5_gitignore_allows_build_scripts_folder
 test_v6_build_app_sh_invokes_verify_app_green
 test_v7_build_app_sh_no_verify_flag_skips_both

@@ -26,8 +26,15 @@
 #                    "Found N errors" / [vite] error / transform failed)
 #   4. BACKEND URL — GET <backend>/health → 200
 #   5. FRONTEND URL— GET <frontend>/ → 200 AND headless render is clean
-#                    (daksh screenshot — Playwright; catches runtime/console errors
-#                     the SPA throws on load, e.g. missing module exports)
+#                    AND screenshots show ACTUAL Lochan content (not blank, not
+#                    error overlay). Gate 5 delegates to take-screenshots.sh
+#                    --render-check which: launches the canonical Playwright
+#                    sidecar, validates screenshot count/size/dimensions, AND
+#                    re-checks both container logs during the navigation window.
+#                    Per founder verbatim 2026-06-07: "for verify green the
+#                    session has to launch the side car and launch frontend
+#                    page and verify both frontend and backed logs are clear
+#                    and that the screenshots show actual lochan screens".
 #
 # Exit 0 only if ALL gates pass. Any gate fails → exit 1 + a per-gate report.
 # NEVER claim an app green without this returning 0.
@@ -174,53 +181,37 @@ else
     fail "GET ${FE_URL} → ${code:-no-response}"
   fi
 
-  # Headless RENDER via the canonical Playwright SIDECAR (Tier-3).
+  # Headless RENDER via take-screenshots.sh --render-check (canonical
+  # composition; see [[feedback-composition-pattern-over-parallel-mirror]]).
+  #
   # A 200 on the HTML shell does NOT mean the SPA actually mounts — a runtime
   # error on load (e.g. a missing module export like `read`/`write`) throws in
-  # the browser, blanks the page, and NEVER shows up in curl. The sidecar drives
-  # a real chromium against the app-network frontend and fails the render if the
-  # page errors. This gate is the founder's "the url actually pulls up the site
-  # without any errors" requirement — REQUIRES the sidecar (lochan-frontend-playwright).
+  # the browser, blanks the page, and NEVER shows up in curl. AND a "clean"
+  # sidecar run is not enough either: blank pages and error overlays still
+  # produce PNGs that the prior Gate-5 logic accepted. take-screenshots.sh
+  # closes both gaps via STRICT visual validation: sidecar launch + per-PNG
+  # size/dimension checks + log-window re-grep. Per founder verbatim 2026-06-07:
+  # "for verify green the session has to launch the side car and launch
+  # frontend page and verify both frontend and backed logs are clear and
+  # that the screenshots show actual lochan screens".
   if [[ $DO_SCREENSHOT -eq 1 ]]; then
-    SIDECAR_IMG="lochan-frontend-playwright:latest"
-    PW_COMPOSE="$GYANAM_DIR/docker/compose.playwright.yml"
-    APP_COMPOSE_PROD="$GYANAM_DIR/apps/$APP/compose.yml"
-
-    if ! docker image inspect "$SIDECAR_IMG" >/dev/null 2>&1; then
-      fail "Playwright sidecar image '$SIDECAR_IMG' NOT BUILT — cannot run render gate"
-      note "build it: ./util/scripts/build/build-app.sh $APP --with-playwright"
-      note "(or: docker build -f docker/03-frontend-playwright.Dockerfile -t $SIDECAR_IMG .)"
-    elif [[ ! -f "$PW_COMPOSE" ]]; then
-      fail "sidecar compose not found: $PW_COMPOSE"
+    TAKE_SCREENSHOTS_SH="$SCRIPT_DIR/take-screenshots.sh"
+    if [[ ! -x "$TAKE_SCREENSHOTS_SH" ]]; then
+      fail "take-screenshots.sh missing or not executable at $TAKE_SCREENSHOTS_SH"
+      note "Gate 5 strict visual validation requires take-screenshots.sh (predecessor #39 followup)"
     else
-      # Prefer the daksh wrapper (single-URL capture) when available; it drives
-      # the sidecar under the hood. Fall back to the canonical compose run.
-      RENDER_OUT=""
-      if [[ -f "$VENV_ACTIVATE" && -x "$DAKSH_CLI" ]]; then
-        # shellcheck source=/dev/null
-        source "$VENV_ACTIVATE"
-        RENDER_OUT="$(APP="$APP" "$DAKSH_CLI" screenshot "$APP" --url "$FE_URL" 2>&1)"
+      RENDER_OUT="$("$TAKE_SCREENSHOTS_SH" "$APP" --render-check 2>&1)"
+      RENDER_RC=$?
+      if [[ $RENDER_RC -eq 0 ]]; then
+        pass "strict visual validation clean (take-screenshots.sh --render-check)"
       else
-        # Canonical opt-in sidecar run (app-agnostic; attaches to <app>_app-network).
-        COMPOSE_F=( -f "${APP_COMPOSE_PROD:-$COMPOSE}" -f "$PW_COMPOSE" )
-        RENDER_OUT="$(APP="$APP" PLAYWRIGHT_BASE_URL="http://${APP}-frontend-1:3000" \
-          docker compose "${COMPOSE_F[@]}" --profile screenshots \
-          run --rm playwright-screenshots 2>&1)"
-      fi
-      # The sidecar wraps `playwright test ... || true`, so exit code is unreliable;
-      # inspect output for render/console failures.
-      if printf '%s\n' "$RENDER_OUT" | grep -qiE 'console\.error|uncaught|pageerror|page error|[0-9]+ failed|did not (render|mount)|Error:|exception|Timeout|ERR_'; then
-        fail "headless render REPORTED ERRORS — URL returns 200 but the SPA errors on load"
-        printf '%s\n' "$RENDER_OUT" | grep -iE 'console\.error|uncaught|pageerror|failed|Error:|exception|Timeout|ERR_' | tail -8 | while IFS= read -r l; do note "$l"; done
-      elif printf '%s\n' "$RENDER_OUT" | grep -qiE 'capture complete|screenshot|✓|passed|\.png'; then
-        pass "headless render clean (Playwright sidecar)"
-      else
-        fail "headless render produced no success signal — treat as RED (inspect output)"
-        printf '%s\n' "$RENDER_OUT" | tail -8 | while IFS= read -r l; do note "$l"; done
+        fail "strict visual validation FAILED — sidecar didn't show actual Lochan screens"
+        # Surface the per-check report from take-screenshots.sh for triage
+        printf '%s\n' "$RENDER_OUT" | tail -16 | while IFS= read -r l; do note "$l"; done
       fi
     fi
   else
-    note "headless render skipped (--no-screenshot) — NOT a full green; gate 5 render unproven"
+    note "strict visual validation skipped (--no-screenshot) — NOT a full green; gate 5 render unproven"
   fi
 fi
 echo ""
