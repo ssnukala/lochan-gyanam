@@ -43,7 +43,7 @@ RUN pnpm install --frozen-lockfile --offline
 
 # 3. Scripts (direct from daksh tool — no staging)
 COPY framework/lochan/packages/daksh/backend/daksh/core/runtime/frontend-entrypoint.sh /app/scripts/
-COPY framework/lochan/packages/daksh/backend/daksh/generators/generate-domain-manifest.py /app/scripts/
+COPY framework/lochan/packages/daksh/backend/daksh/core/generators/generate-domain-manifest.py /app/scripts/
 RUN chmod +x /app/scripts/frontend-entrypoint.sh
 
 # 4. Framework-tier mandi catalog stub.
