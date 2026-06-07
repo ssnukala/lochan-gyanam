@@ -115,12 +115,47 @@ echo ""
 # ─────────────────────────────────────────────────────────────────────
 # GATE 2 — BACKEND LOG clean
 # ─────────────────────────────────────────────────────────────────────
+# Build session MSG-042 2026-06-07: gate-2 was false-RED'ing on
+# WARNING lines. Two compounding causes:
+#   (1) the inclusion grep was case-insensitive (`-iE`), so `exception`
+#       (lowercase) matched the word inside `WARNING: ConnectionPool
+#       exception retry` — a benign WARN-level operational notice, NOT
+#       a Python `Exception:` print or `Traceback`. Same trap for the
+#       lowercase tokens `critical` / `fatal` / `unhandled` — which all
+#       appear inside WARNING messages as plain English nouns.
+#   (2) the substring `\bERROR\b` plus `-i` matched the word `Error` /
+#       `error` inside WARN message text (e.g. `WARNING: error_handler
+#       installed`).
+# Fix: drop `-iE` → `-E` (case-sensitive), require all level tokens to
+# be UPPERCASE + word-bounded (matches Python `logging` level emission
+# `ERROR` / `CRITICAL` / `FATAL` exactly, NOT lowercase descriptive
+# prose). Keep `Traceback` (capital T) + `Exception:` (capital E + colon)
+# + `AssertionError` as the canonical Python exception markers — those
+# are emitted verbatim by the runtime in that case. Belt-and-suspenders:
+# add `WARNING|^WARN |WARN:` to the exclusion grep so even if a line
+# slips through the inclusion pattern, an explicit WARN line is rejected.
+#
+# False-positive matrix (pre-fix → post-fix):
+#   `WARNING: deprecation notice`                  | RED → GREEN ✓
+#   `WARNING: ConnectionPool exception retry`      | RED → GREEN ✓
+#   `WARNING: critical_section disabled`           | RED → GREEN ✓
+#   `WARNING:root:fatal_on_disconnect=false`       | RED → GREEN ✓
+#   `WARN  some.module: error_handler installed`   | RED → GREEN ✓
+#   `INFO: Found 0 errors`                         | GREEN → GREEN ✓
+#   `ERROR: failed to connect`                     | RED → RED ✓
+#   `Traceback (most recent call last):`           | RED → RED ✓
+#   `Exception: bare runtime crash`                | RED → RED ✓
+#   `AssertionError: test invariant broken`        | RED → RED ✓
+#   `CRITICAL:root:db_unreachable`                 | RED → RED ✓
+#   `FATAL: unrecoverable boot failure`            | RED → RED ✓
 echo "[2/5] Backend logs — no errors/tracebacks"
 BE_LOG="$("${DC[@]}" logs backend 2>&1)"
-# Exclude sqlalchemy.engine echo lines + the literal word in non-error context.
+# Inclusion: uppercase/canonical exception markers ONLY (case-sensitive).
+# Exclusion: sqlalchemy.engine echo noise + benign `no/0 error` phrases +
+# WARN/WARNING level lines (defense-in-depth against future drift).
 BE_ERR="$(printf '%s\n' "$BE_LOG" \
-  | grep -iE 'traceback|exception|assertionerror|\[ERR ?\]|\bERROR\b|unhandled|critical|fatal' \
-  | grep -viE 'sqlalchemy\.engine|no error|0 error|error_code.:.null|send_no_error' )"
+  | grep -E 'Traceback|Exception:|AssertionError|\[ERR ?\]|\bERROR\b|\bCRITICAL\b|\bFATAL\b' \
+  | grep -viE 'sqlalchemy\.engine|no error|0 error|error_code.:.null|send_no_error|^[^:]*WARNING|^[^:]*\bWARN\b' )"
 if [[ -z "$BE_ERR" ]]; then
   pass "backend logs clean"
 else
