@@ -44,14 +44,17 @@ names.md          # Sanskrit name registry (lives with framework docs)
 
 # ── Founder-private scripts ──────────────────────────────────────────────
 # Private scripts — lives in ssnukala/lochan-util, never on servers.
-# Exception: util/scripts/lgit.sh + test-lgit.sh are workspace-canonical
-# (founder ratified 2026-05-24; CODING-STANDARDS §7 #7 + [[feedback-no-direct-git-commands-use-lgit-wrapper]]).
+# Exception: util/scripts/lgit.sh + lgh.sh + test-lgit.sh are workspace-canonical
+# (lgit founder ratified 2026-05-24; lgh founder ratified 2026-06-09 post wrong-PR-target
+# incident on PRs #1187 + #1188; CODING-STANDARDS §7 #7 +
+# [[feedback-no-direct-git-commands-use-lgit-wrapper]] BINDING extended to gh).
 util/
 !util/
 util/*
 !util/scripts/
 util/scripts/*
 !util/scripts/lgit.sh
+!util/scripts/lgh.sh
 !util/scripts/test-lgit.sh
 !util/scripts/test-util-scripts-strict-mode.sh
 !util/scripts/sleep-mode-setup.sh
