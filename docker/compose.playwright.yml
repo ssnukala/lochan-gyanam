@@ -83,6 +83,14 @@ services:
       # §A.5 invariant.
       - ../../framework/lochan/docs/screenshots/patent_demos_clickable:/screenshots:rw
 
+      # storageState.json bind-mount for authenticated_admin.spec.ts —
+      # per Day-14 authenticated admin screenshots dispatch. Generated
+      # via `daksh pw-login <app>` (canonical capture-run setup); read
+      # by Playwright at canonical path /storageState.json. APP defaults
+      # to fwprod01 (canonical framework verify target); override via
+      # APP env var for other apps. Read-only — spec consumes only.
+      - ../../apps/${APP:-fwprod01}/storageState.json:/storageState.json:ro
+
     environment:
       # Resolves to the parent app's frontend service via Docker DNS.
       # Default points at the canonical fwprod01 frontend service name;
@@ -96,6 +104,11 @@ services:
       # stays env-aware; image stays generic; default host behavior
       # preserved when running outside the sidecar.
       - SCREENSHOT_DIR=/screenshots
+      # Path to the bind-mounted storageState.json for authenticated
+      # spec (admin CRUD route capture). Decoupled from host-side
+      # default (apps/<app>/storageState.json) so image stays generic.
+      - STORAGE_STATE=/storageState.json
+      - APP_NAME=${APP:-fwprod01}
 
     # working_dir matches the symlinked /tests path in the Tier-3 image
     # (`ln -s /app/frontend /tests` in 03-frontend-playwright.Dockerfile).
