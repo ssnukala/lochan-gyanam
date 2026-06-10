@@ -24,6 +24,23 @@ util/
 **/.venv/
 **/.pytest_cache/
 
+# setuptools build artifacts — when a package is pip-installed with
+# editable + pep517 backends, setuptools writes a stale tree at
+# ``<pkg>/backend/build/lib/<pkg>/``. If this gets copied into the Docker
+# build context, setuptools picks it up over the fresh source and the
+# resulting wheel contains the OLD code. Surface example (post-stable
+# fwprod01 build 2026-06-10): daksh.secrets.models retained the retired
+# ``from trishul.sepoy.models.base import Base`` import even though
+# disk source had been migrated to ``from muulam.data import Base`` —
+# setuptools resolved against ``daksh/backend/build/lib/daksh/secrets/
+# models.py`` (the stale tree) instead of the canonical
+# ``daksh/backend/daksh/secrets/models.py``. The build/ tree IS in
+# .gitignore but was not in .dockerignore — so it landed in the build
+# context. Excluding it here forces pip to install from the canonical
+# source tree only.
+**/backend/build/
+**/build/lib/
+
 # IDE / OS
 .vscode/
 .idea/
