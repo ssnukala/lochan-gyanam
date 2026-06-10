@@ -131,7 +131,7 @@ services:
       - ../../framework/lochan/frontend/widgets:/app/frontend/widgets
       - ../../framework/lochan/frontend/blocks:/app/frontend/blocks
       # Bind-mount the modified autowire script so empty-room edits go live.
-      - ../../framework/lochan/packages/daksh/backend/daksh/core/generators/generate-domain-manifest.py:/app/scripts/generate-domain-manifest.py
+      - ../../framework/lochan/packages/daksh/backend/daksh/generators/generate-domain-manifest.py:/app/scripts/generate-domain-manifest.py
     environment:
       - PRIMARY_PACKAGE=
       - VITE_HMR_PORT=${PORT_FRONTEND:-8593}
