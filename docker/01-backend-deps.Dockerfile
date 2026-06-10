@@ -33,7 +33,7 @@ COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /usr/local/bin/
 WORKDIR /build
 
 # Copy everything needed for dependency extraction (direct from monorepo)
-COPY framework/lochan/packages/daksh/backend/daksh/core/runtime/extract-all-deps.py /build/
+COPY framework/lochan/packages/daksh/backend/daksh/runtime/extract-all-deps.py /build/
 COPY framework/lochan/backend/requirements.txt /build/backend/
 COPY framework/lochan/packages/ /build/packages/
 COPY framework/lochan/packages/daksh/backend/pyproject.toml /build/.daksh/pyproject.toml

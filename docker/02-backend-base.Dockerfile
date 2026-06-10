@@ -18,7 +18,7 @@ FROM lochan-deps-backend:latest AS builder
 WORKDIR /build
 
 # 1. Framework packages — deps pre-installed in Tier 0, just register entry points
-COPY framework/lochan/packages/daksh/backend/daksh/core/runtime/install-framework-packages.py /build/install-framework-packages.py
+COPY framework/lochan/packages/daksh/backend/daksh/runtime/install-framework-packages.py /build/install-framework-packages.py
 COPY framework/lochan/packages/ /build/packages/
 RUN python3 /build/install-framework-packages.py /build/packages --install
 
@@ -105,11 +105,11 @@ COPY framework/lochan/backend/alembic* /app/
 COPY framework/lochan/data /app/data
 
 # 4. Helper scripts
-COPY framework/lochan/packages/daksh/backend/daksh/core/runtime/install-packages.py /app/scripts/
-COPY framework/lochan/packages/daksh/backend/daksh/core/runtime/install-domain-packages.py /app/scripts/
-COPY framework/lochan/packages/daksh/backend/daksh/core/runtime/install-framework-packages.py /app/scripts/
-COPY framework/lochan/packages/daksh/backend/daksh/core/runtime/dev-entrypoint.sh /app/scripts/
-COPY framework/lochan/packages/daksh/backend/daksh/core/generators/generate-manifest.py /app/scripts/
+COPY framework/lochan/packages/daksh/backend/daksh/runtime/install-packages.py /app/scripts/
+COPY framework/lochan/packages/daksh/backend/daksh/runtime/install-domain-packages.py /app/scripts/
+COPY framework/lochan/packages/daksh/backend/daksh/runtime/install-framework-packages.py /app/scripts/
+COPY framework/lochan/packages/daksh/backend/daksh/runtime/dev-entrypoint.sh /app/scripts/
+COPY framework/lochan/packages/daksh/backend/daksh/generators/generate-manifest.py /app/scripts/
 
 # 5. Framework package configs + locales
 COPY --from=builder /build/packages/ /tmp/packages/
