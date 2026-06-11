@@ -249,6 +249,30 @@ test_l12_screenshot_dir_matches_compose_bindmount() {
   fi
 }
 
+# ── §L.13 — take-screenshots.sh self-heals storageState via pw-login ─
+test_l13_pw_login_self_heal_before_launch() {
+  local desc="§L.13 take-screenshots.sh runs 'daksh pw-login' before launching the sidecar (D7e founder ratified 2026-06-11: storageState.json goes stale on container recreate+reseed; authenticated spec aborts authenticated=false without self-heal)"
+  local ts="$SCRIPT_DIR/take-screenshots.sh"
+  local login_line launch_line
+  # The login must precede the first actual sidecar invocation (the
+  # run_sidecar call), not merely the step banner.
+  login_line="$(grep -nE '"\$DAKSH_CLI" pw-login' "$ts" | head -1 | cut -d: -f1)" || true
+  launch_line="$(grep -nE '^\s*SIDECAR_OUT="\$\(run_sidecar' "$ts" | head -1 | cut -d: -f1)" || true
+  if [[ -z "$login_line" ]]; then
+    fail "$desc — no pw-login invocation found"
+    return
+  fi
+  if [[ -z "$launch_line" ]]; then
+    fail "$desc — could not locate the sidecar-launch step to order against"
+    return
+  fi
+  if (( login_line < launch_line )); then
+    pass "$desc (pw-login at line $login_line; launch at line $launch_line)"
+  else
+    fail "$desc — pw-login at line $login_line is NOT BEFORE sidecar launch at line $launch_line"
+  fi
+}
+
 echo "── Tier-3 Playwright sidecar substrate regression (β + type:module + L11 + L12) ──"
 echo ""
 test_l1_dockerfile_exists_and_uses_bookworm_slim
@@ -263,6 +287,7 @@ test_l9_sidecar_package_json_type_module
 test_l10_env_browsers_path_precedes_install
 test_l11_compose_screenshot_dir_env
 test_l12_screenshot_dir_matches_compose_bindmount
+test_l13_pw_login_self_heal_before_launch
 
 echo ""
 TOTAL=$((PASS + FAIL))
