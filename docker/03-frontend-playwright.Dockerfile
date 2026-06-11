@@ -110,6 +110,15 @@ RUN npm install -g pnpm@10
 COPY framework/lochan/frontend/playwright.config.ts ./playwright.config.ts
 COPY framework/lochan/frontend/e2e ./e2e
 
+# Bake the canonical FP11 demo registry the e2e index-loader reads.
+# patent_demos_index_loader.ts resolves its default path frontend/ ->
+# ../packages/muulam/backend/muulam/_demo_manifests/_index.json; with
+# working_dir /tests that resolves to /packages/... — bake the manifests
+# at that exact path so default resolution works identically in-image
+# (no MUULAM_DEMO_INDEX_PATH override; Tier-3 bake-in canon per
+# Q-CAPTURE-RUN-BIND-MOUNT-LAYOUT = B).
+COPY framework/lochan/packages/muulam/backend/muulam/_demo_manifests /packages/muulam/backend/muulam/_demo_manifests
+
 # Author a minimal package.json declaring @playwright/test devDep +
 # pinned to canonical test-image-pins.json version (@playwright/test =
 # 1.48.0; matches 02-frontend-base test stage + compose.playwright.yml
