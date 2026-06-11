@@ -246,6 +246,26 @@ echo ""
 # CHECK 4 — Launch sidecar (canonical compose invocation)
 # ─────────────────────────────────────────────────────────────────────
 echo "[4/6] Launching sidecar via canonical compose"
+
+# §D7e self-heal (founder ratified 2026-06-11): storageState.json holds
+# session cookies that die on every container recreate + reseed — the
+# authenticated_admin spec then aborts with authenticated=false and the
+# admin CRUD captures silently drop to zero. Refresh the login state
+# before every launch: sub-second, idempotent, removes the manual
+# "run daksh pw-login" step from the capture loop. Ordering pinned by
+# test-capture-run-sidecar-substrate.sh §L.13.
+DAKSH_CLI="$GYANAM_DIR/framework/lochan/packages/daksh/daksh-cli"
+if [[ -x "$DAKSH_CLI" ]]; then
+  note "refreshing storageState.json via daksh pw-login $APP (§D7e self-heal)"
+  if ! PW_LOGIN_OUT="$("$DAKSH_CLI" pw-login "$APP" 2>&1)"; then
+    # Loud, not fatal: the authenticated spec fails visibly downstream and
+    # unauthenticated captures (patent demo pages) still have value.
+    note "pw-login FAILED — authenticated captures will abort:"
+    note "  $(printf '%s' "$PW_LOGIN_OUT" | tail -1)"
+  fi
+else
+  note "daksh-cli not found at $DAKSH_CLI — skipping §D7e pw-login self-heal"
+fi
 COMPOSE_F=( -f "$APP_COMPOSE" -f "$PW_COMPOSE" )
 PLAYWRIGHT_BASE_URL="http://${APP}-frontend-1:3000"
 note "BASE_URL = $PLAYWRIGHT_BASE_URL"
