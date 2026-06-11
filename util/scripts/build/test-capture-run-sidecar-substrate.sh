@@ -217,6 +217,62 @@ test_l11_compose_screenshot_dir_env() {
   fi
 }
 
+# ── §L.12 — validator SCREENSHOT_DIR == compose bind-mount host path ─
+test_l12_screenshot_dir_matches_compose_bindmount() {
+  local desc="§L.12 take-screenshots.sh SCREENSHOT_DIR equals the compose /screenshots bind-mount host path (D7 gate-5: validator counted PNGs in a dir the sidecar never writes — strict count check could never pass)"
+  local ts="$SCRIPT_DIR/take-screenshots.sh"
+  # Host side of the writable /screenshots bind-mount, relative to the
+  # compose file's directory ($GYANAM_DIR/docker).
+  local mount_rel mount_abs script_abs
+  mount_rel="$(grep -oE '^[[:space:]]*-[[:space:]]*[^:]+:/screenshots' "$COMPOSE_PLAYWRIGHT" | head -1 | sed -E 's/^[[:space:]]*-[[:space:]]*//; s|:/screenshots$||')" || true
+  if [[ -z "$mount_rel" ]]; then
+    fail "$desc — could not extract /screenshots bind-mount host path from compose"
+    return
+  fi
+  # Textual normalization (no filesystem dependence — worktrees don't
+  # materialize the nested framework repo): the mount path is relative
+  # to the compose file's dir ($GYANAM_DIR/docker), so '../../X' ≡
+  # '$GYANAM_DIR/X'. A future compose layout change breaks this pin
+  # loudly, which is the point.
+  mount_abs="$GYANAM_DIR/${mount_rel#../../}"
+  # Resolve the SCREENSHOT_DIR assignment exactly as the script would
+  # (its only input variable is GYANAM_DIR, which we share).
+  script_abs="$(GYANAM_DIR="$GYANAM_DIR" bash -c "$(grep -E '^SCREENSHOT_DIR=' "$ts" | head -1); printf '%s' \"\$SCREENSHOT_DIR\"")" || true
+  if [[ -z "$script_abs" ]]; then
+    fail "$desc — could not extract SCREENSHOT_DIR= assignment from take-screenshots.sh"
+    return
+  fi
+  if [[ "$script_abs" == "$mount_abs" ]]; then
+    pass "$desc ($mount_abs)"
+  else
+    fail "$desc — script counts in '$script_abs' but sidecar writes to '$mount_abs'"
+  fi
+}
+
+# ── §L.13 — take-screenshots.sh self-heals storageState via pw-login ─
+test_l13_pw_login_self_heal_before_launch() {
+  local desc="§L.13 take-screenshots.sh runs 'daksh pw-login' before launching the sidecar (D7e founder ratified 2026-06-11: storageState.json goes stale on container recreate+reseed; authenticated spec aborts authenticated=false without self-heal)"
+  local ts="$SCRIPT_DIR/take-screenshots.sh"
+  local login_line launch_line
+  # The login must precede the first actual sidecar invocation (the
+  # run_sidecar call), not merely the step banner.
+  login_line="$(grep -nE '"\$DAKSH_CLI" pw-login' "$ts" | head -1 | cut -d: -f1)" || true
+  launch_line="$(grep -nE '^\s*SIDECAR_OUT="\$\(run_sidecar' "$ts" | head -1 | cut -d: -f1)" || true
+  if [[ -z "$login_line" ]]; then
+    fail "$desc — no pw-login invocation found"
+    return
+  fi
+  if [[ -z "$launch_line" ]]; then
+    fail "$desc — could not locate the sidecar-launch step to order against"
+    return
+  fi
+  if (( login_line < launch_line )); then
+    pass "$desc (pw-login at line $login_line; launch at line $launch_line)"
+  else
+    fail "$desc — pw-login at line $login_line is NOT BEFORE sidecar launch at line $launch_line"
+  fi
+}
+
 echo "── Tier-3 Playwright sidecar substrate regression (β + type:module + L11 + L12) ──"
 echo ""
 test_l1_dockerfile_exists_and_uses_bookworm_slim
@@ -230,6 +286,8 @@ test_l8_dockerfile_copies_canonical_specs
 test_l9_sidecar_package_json_type_module
 test_l10_env_browsers_path_precedes_install
 test_l11_compose_screenshot_dir_env
+test_l12_screenshot_dir_matches_compose_bindmount
+test_l13_pw_login_self_heal_before_launch
 
 echo ""
 TOTAL=$((PASS + FAIL))

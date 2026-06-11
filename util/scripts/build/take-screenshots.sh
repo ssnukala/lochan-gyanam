@@ -35,8 +35,9 @@
 #                       -f docker/compose.playwright.yml \
 #                       --profile screenshots \
 #                       run --rm playwright-screenshots[-mobile]
-#      Sidecar writes PNGs to docs/screenshots/patent_demos_clickable/
-#      via the canonical bind-mount (PR #782 §A.5 invariant).
+#      Sidecar writes PNGs to framework/lochan/docs/screenshots/
+#      patent_demos_clickable/ via the canonical bind-mount (PR #782
+#      §A.5 invariant; host/script path agreement pinned by §L.12).
 #   5. VALIDATE captured screenshots — STRICT 3-check:
 #        (a) COUNT — expect ≥ MIN_SCREENSHOTS for the chosen mode. Fewer = sidecar
 #            failed silently (the underlying `playwright test || true` swallows
@@ -111,7 +112,13 @@ FULL_CAPTURE_MIN_SCREENSHOTS=4   # --desktop / --mobile mode: full demo set has 
 # ── Resolve paths ──
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 GYANAM_DIR="$(cd "$SCRIPT_DIR/../../.." && pwd)"
-SCREENSHOT_DIR="$GYANAM_DIR/docs/screenshots/patent_demos_clickable"
+# Host side of the sidecar's writable /screenshots bind-mount — MUST match
+# compose.playwright.yml (canonical location per PR #782 §A.5; agreement
+# pinned by test-capture-run-sidecar-substrate.sh §L.12). D7 gate-5
+# incident: this pointed at $GYANAM_DIR/docs/... while the sidecar wrote
+# $GYANAM_DIR/framework/lochan/docs/... — the strict count check could
+# never see a fresh PNG.
+SCREENSHOT_DIR="$GYANAM_DIR/framework/lochan/docs/screenshots/patent_demos_clickable"
 
 # ── Arg parsing ──
 if [[ $# -lt 1 ]]; then
@@ -239,6 +246,26 @@ echo ""
 # CHECK 4 — Launch sidecar (canonical compose invocation)
 # ─────────────────────────────────────────────────────────────────────
 echo "[4/6] Launching sidecar via canonical compose"
+
+# §D7e self-heal (founder ratified 2026-06-11): storageState.json holds
+# session cookies that die on every container recreate + reseed — the
+# authenticated_admin spec then aborts with authenticated=false and the
+# admin CRUD captures silently drop to zero. Refresh the login state
+# before every launch: sub-second, idempotent, removes the manual
+# "run daksh pw-login" step from the capture loop. Ordering pinned by
+# test-capture-run-sidecar-substrate.sh §L.13.
+DAKSH_CLI="$GYANAM_DIR/framework/lochan/packages/daksh/daksh-cli"
+if [[ -x "$DAKSH_CLI" ]]; then
+  note "refreshing storageState.json via daksh pw-login $APP (§D7e self-heal)"
+  if ! PW_LOGIN_OUT="$("$DAKSH_CLI" pw-login "$APP" 2>&1)"; then
+    # Loud, not fatal: the authenticated spec fails visibly downstream and
+    # unauthenticated captures (patent demo pages) still have value.
+    note "pw-login FAILED — authenticated captures will abort:"
+    note "  $(printf '%s' "$PW_LOGIN_OUT" | tail -1)"
+  fi
+else
+  note "daksh-cli not found at $DAKSH_CLI — skipping §D7e pw-login self-heal"
+fi
 COMPOSE_F=( -f "$APP_COMPOSE" -f "$PW_COMPOSE" )
 PLAYWRIGHT_BASE_URL="http://${APP}-frontend-1:3000"
 note "BASE_URL = $PLAYWRIGHT_BASE_URL"
