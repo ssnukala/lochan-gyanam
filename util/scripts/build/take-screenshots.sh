@@ -35,8 +35,9 @@
 #                       -f docker/compose.playwright.yml \
 #                       --profile screenshots \
 #                       run --rm playwright-screenshots[-mobile]
-#      Sidecar writes PNGs to docs/screenshots/patent_demos_clickable/
-#      via the canonical bind-mount (PR #782 §A.5 invariant).
+#      Sidecar writes PNGs to framework/lochan/docs/screenshots/
+#      patent_demos_clickable/ via the canonical bind-mount (PR #782
+#      §A.5 invariant; host/script path agreement pinned by §L.12).
 #   5. VALIDATE captured screenshots — STRICT 3-check:
 #        (a) COUNT — expect ≥ MIN_SCREENSHOTS for the chosen mode. Fewer = sidecar
 #            failed silently (the underlying `playwright test || true` swallows
@@ -111,7 +112,13 @@ FULL_CAPTURE_MIN_SCREENSHOTS=4   # --desktop / --mobile mode: full demo set has 
 # ── Resolve paths ──
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 GYANAM_DIR="$(cd "$SCRIPT_DIR/../../.." && pwd)"
-SCREENSHOT_DIR="$GYANAM_DIR/docs/screenshots/patent_demos_clickable"
+# Host side of the sidecar's writable /screenshots bind-mount — MUST match
+# compose.playwright.yml (canonical location per PR #782 §A.5; agreement
+# pinned by test-capture-run-sidecar-substrate.sh §L.12). D7 gate-5
+# incident: this pointed at $GYANAM_DIR/docs/... while the sidecar wrote
+# $GYANAM_DIR/framework/lochan/docs/... — the strict count check could
+# never see a fresh PNG.
+SCREENSHOT_DIR="$GYANAM_DIR/framework/lochan/docs/screenshots/patent_demos_clickable"
 
 # ── Arg parsing ──
 if [[ $# -lt 1 ]]; then
