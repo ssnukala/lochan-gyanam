@@ -234,6 +234,25 @@ if (( DEPLOY )) && (( ${#APPS[@]} > 0 )); then
     (
       cd "$app_dir"
       docker compose -f "$compose_file" up -d --force-recreate --build
+
+      # Dev bring-up B1 (founder-ratified 2026-06-19): the generated
+      # compose.dev.yml delivers domain/common packages via `develop.watch`
+      # (#1330 mount-consolidation), which is INERT under plain `up -d`. And
+      # activation alone is insufficient: `compose watch` can't combine with
+      # `-d`, so it syncs AFTER `up -d`, but dev-entrypoint.sh installs domain
+      # packages ONCE at boot against an empty /app/packages/ -> framework-only
+      # boot. So: spawn watch (initial sync lands the packages) -> restart the
+      # backend so the entrypoint re-installs editable with packages present
+      # (`--skip-existing` makes the framework re-scan cheap). Dev-only; prod/
+      # staging compose have no watch rules. Mirrors the daksh deployer's
+      # activate_dev_watch_with_reinstall (sister PR in ssnukala/lochan).
+      if [[ "$MODE" == "dev" ]]; then
+        mkdir -p log
+        docker compose -f "$compose_file" watch >log/compose-watch.log 2>&1 &
+        sleep 8   # let the initial sync land the domain/common packages
+        docker compose -f "$compose_file" restart backend \
+          || warn "$app: backend restart after watch sync failed — domain packages may be absent (app could boot framework-only)"
+      fi
     )
     log "$app: restarted"
   done
