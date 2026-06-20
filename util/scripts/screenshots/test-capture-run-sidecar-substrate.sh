@@ -30,7 +30,7 @@
 #   §L.7 Dockerfile has substantive doc-block (founder Day-7 BINDING B);
 #        ≥20 comment lines documenting WHY (not WHAT)
 #
-# Usage: bash util/scripts/build/test-capture-run-sidecar-substrate.sh
+# Usage: bash util/scripts/screenshots/test-capture-run-sidecar-substrate.sh
 # Exit:  0 on ALL PASS / non-zero with PASS/FAIL summary on any FAIL
 
 set -euo pipefail
@@ -256,7 +256,10 @@ test_l13_pw_login_self_heal_before_launch() {
   local login_line launch_line
   # The login must precede the first actual sidecar invocation (the
   # run_sidecar call), not merely the step banner.
-  login_line="$(grep -nE '"\$DAKSH_CLI" pw-login' "$ts" | head -1 | cut -d: -f1)" || true
+  # Matches both the plain `"$DAKSH_CLI" pw-login "$APP"` form and the
+  # persona-aware `PW_LOGIN_ARGS=( pw-login … )` + `"$DAKSH_CLI" "${PW_LOGIN_ARGS[@]}"`
+  # form (2026-06-20: --user/--password persona pass-through).
+  login_line="$(grep -nE '"\$DAKSH_CLI" pw-login|PW_LOGIN_ARGS=\( pw-login' "$ts" | head -1 | cut -d: -f1)" || true
   launch_line="$(grep -nE '^\s*SIDECAR_OUT="\$\(run_sidecar' "$ts" | head -1 | cut -d: -f1)" || true
   if [[ -z "$login_line" ]]; then
     fail "$desc — no pw-login invocation found"

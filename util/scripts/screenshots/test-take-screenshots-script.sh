@@ -21,7 +21,7 @@
 #     checks".
 #
 # Canonical invariants pinned:
-#   §T.1 util/scripts/build/take-screenshots.sh EXISTS + is executable
+#   §T.1 util/scripts/screenshots/take-screenshots.sh EXISTS + is executable
 #   §T.2 Script supports all four mode flags: --desktop, --mobile, --all,
 #        --render-check
 #   §T.3 MIN_SCREENSHOT_BYTES constant present at 30 KB (= 30720) — the
@@ -47,14 +47,14 @@
 #         pattern; mirrors verify-app-green.sh per
 #         [[feedback-multi-layer-bug-stack-honest-disclosure]] BINDING)
 #
-# Usage: bash util/scripts/build/test-take-screenshots-script.sh
+# Usage: bash util/scripts/screenshots/test-take-screenshots-script.sh
 # Exit:  0 on ALL PASS / non-zero with PASS/FAIL summary on any FAIL
 
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 GYANAM_DIR="$(cd "$SCRIPT_DIR/../../.." && pwd)"
-TAKE_SCREENSHOTS_SH="$GYANAM_DIR/util/scripts/build/take-screenshots.sh"
+TAKE_SCREENSHOTS_SH="$GYANAM_DIR/util/scripts/screenshots/take-screenshots.sh"
 VERIFY_GREEN_SH="$GYANAM_DIR/util/scripts/build/verify-app-green.sh"
 
 PASS=0
@@ -68,7 +68,7 @@ fail() { echo "${RED}FAIL${RESET}: $1"; FAIL=$((FAIL + 1)); }
 
 # ── §T.1 — take-screenshots.sh exists + executable ────────────────────
 test_t1_script_exists_and_executable() {
-  local desc="§T.1 util/scripts/build/take-screenshots.sh EXISTS + is executable"
+  local desc="§T.1 util/scripts/screenshots/take-screenshots.sh EXISTS + is executable"
   if [[ ! -f "$TAKE_SCREENSHOTS_SH" ]]; then
     fail "$desc — file missing at $TAKE_SCREENSHOTS_SH"
     return

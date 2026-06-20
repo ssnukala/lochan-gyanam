@@ -53,13 +53,13 @@ util/
 util/*
 !util/scripts/
 util/scripts/*
+!util/scripts/screenshots/
 !util/scripts/lgit.sh
 !util/scripts/lgh.sh
 !util/scripts/test-lgit.sh
 !util/scripts/test-util-scripts-strict-mode.sh
 !util/scripts/sleep-mode-setup.sh
 !util/scripts/wave-runner.sh
-!util/scripts/test-capture-run-sidecar-substrate.sh
 !util/scripts/migrate-locales-to-canonical.sh
 
 # ── Secrets — NEVER commit ───────────────────────────────────────────────
