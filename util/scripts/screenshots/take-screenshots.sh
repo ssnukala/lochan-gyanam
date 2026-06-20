@@ -2,11 +2,11 @@
 # take-screenshots.sh — canonical strict-visual-validation screenshot harness
 #
 # Usage:
-#   ./util/scripts/build/take-screenshots.sh <app>                    # default --desktop
-#   ./util/scripts/build/take-screenshots.sh <app> --desktop          # full desktop captures
-#   ./util/scripts/build/take-screenshots.sh <app> --mobile           # mobile (Pixel 7) captures
-#   ./util/scripts/build/take-screenshots.sh <app> --all              # both desktop + mobile
-#   ./util/scripts/build/take-screenshots.sh <app> --render-check     # minimal Gate-5 validation
+#   ./util/scripts/screenshots/take-screenshots.sh <app>                    # default --desktop
+#   ./util/scripts/screenshots/take-screenshots.sh <app> --desktop          # full desktop captures
+#   ./util/scripts/screenshots/take-screenshots.sh <app> --mobile           # mobile (Pixel 7) captures
+#   ./util/scripts/screenshots/take-screenshots.sh <app> --all              # both desktop + mobile
+#   ./util/scripts/screenshots/take-screenshots.sh <app> --render-check     # minimal Gate-5 validation
 #
 # WHY THIS EXISTS (founder verbatim 2026-06-07):
 #   "for verify green the session has to launch the side car and launch
@@ -123,17 +123,28 @@ SCREENSHOT_DIR="$GYANAM_DIR/framework/lochan/docs/screenshots/patent_demos_click
 # ── Arg parsing ──
 if [[ $# -lt 1 ]]; then
   echo "ERROR: app name required" >&2
-  echo "Usage: $0 <app> [--desktop|--mobile|--all|--render-check]" >&2
+  echo "Usage: $0 <app> [--desktop|--mobile|--all|--render-check] [--user <email> --password <pw>]" >&2
+  echo "  --user/--password: capture AS a specific persona (default = app .env SUPER_ADMIN_*)." >&2
+  echo "  For per-persona capture across all of an app's personas, use persona-screenshots.sh." >&2
   exit 2
 fi
 APP="$1"; shift || true
 MODE="desktop"
+# Optional persona login — forwarded to the §D7e `daksh pw-login` self-heal so
+# the sidecar captures AS a specific persona (not the app default super-admin).
+# Empty = default behaviour (app .env SUPER_ADMIN_*). Used by the
+# persona-screenshots.sh autowire wrapper, which resolves these from
+# <pkg>/backend/<pkg>/seeds/personas/*.json. See that wrapper for the loop.
+PW_USER=""
+PW_PASSWORD=""
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --desktop) MODE="desktop"; shift ;;
     --mobile) MODE="mobile"; shift ;;
     --all) MODE="all"; shift ;;
     --render-check) MODE="render-check"; shift ;;
+    --user) PW_USER="${2:?--user needs an email}"; shift 2 ;;
+    --password) PW_PASSWORD="${2:?--password needs a value}"; shift 2 ;;
     *) echo "ERROR: unknown flag $1" >&2; exit 2 ;;
   esac
 done
@@ -255,9 +266,14 @@ echo "[4/6] Launching sidecar via canonical compose"
 # "run daksh pw-login" step from the capture loop. Ordering pinned by
 # test-capture-run-sidecar-substrate.sh §L.13.
 DAKSH_CLI="$GYANAM_DIR/framework/lochan/packages/daksh/daksh-cli"
+# Persona pass-through: forward --user/--password to daksh pw-login so the
+# storageState is minted for THAT persona (default = app .env SUPER_ADMIN_*).
+PW_LOGIN_ARGS=( pw-login "$APP" )
+[[ -n "$PW_USER" ]]     && PW_LOGIN_ARGS+=( --user "$PW_USER" )
+[[ -n "$PW_PASSWORD" ]] && PW_LOGIN_ARGS+=( --password "$PW_PASSWORD" )
 if [[ -x "$DAKSH_CLI" ]]; then
-  note "refreshing storageState.json via daksh pw-login $APP (§D7e self-heal)"
-  if ! PW_LOGIN_OUT="$("$DAKSH_CLI" pw-login "$APP" 2>&1)"; then
+  note "refreshing storageState.json via daksh pw-login $APP${PW_USER:+ --user $PW_USER} (§D7e self-heal)"
+  if ! PW_LOGIN_OUT="$("$DAKSH_CLI" "${PW_LOGIN_ARGS[@]}" 2>&1)"; then
     # Loud, not fatal: the authenticated spec fails visibly downstream and
     # unauthenticated captures (patent demo pages) still have value.
     note "pw-login FAILED — authenticated captures will abort:"
@@ -273,6 +289,15 @@ note "compose: docker compose ${COMPOSE_F[*]} -p $APP --profile screenshots run 
 
 run_sidecar() {
   local svc="$1"
+  # APP MUST be exported: compose.playwright.yml binds the authenticated
+  # storageState from `apps/${APP:-fwprod01}/storageState.json`. Without APP in
+  # the compose env it silently falls back to fwprod01 → the sidecar mounts the
+  # WRONG app's cookies → /api/manifest returns authenticated=false → every
+  # authenticated persona capture aborts (and the error misleadingly names
+  # fwprod01). This bug masked #1420 + #1429: both were correct, but the sidecar
+  # never saw this app's storageState. (Also drives APP_NAME for the error hint.)
+  APP="$APP" \
+  APP_NAME="$APP" \
   COMPOSE_PROJECT_NAME="$APP" \
   PLAYWRIGHT_BASE_URL="$PLAYWRIGHT_BASE_URL" \
   docker compose "${COMPOSE_F[@]}" -p "$APP" --profile screenshots \

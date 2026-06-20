@@ -234,7 +234,9 @@ else
   # frontend page and verify both frontend and backed logs are clear and
   # that the screenshots show actual lochan screens".
   if [[ $DO_SCREENSHOT -eq 1 ]]; then
-    TAKE_SCREENSHOTS_SH="$SCRIPT_DIR/take-screenshots.sh"
+    # take-screenshots.sh lives in the sibling screenshots/ dir (moved from
+    # build/ 2026-06-20 — screenshot tooling consolidated).
+    TAKE_SCREENSHOTS_SH="$SCRIPT_DIR/../screenshots/take-screenshots.sh"
     if [[ ! -x "$TAKE_SCREENSHOTS_SH" ]]; then
       fail "take-screenshots.sh missing or not executable at $TAKE_SCREENSHOTS_SH"
       note "Gate 5 strict visual validation requires take-screenshots.sh (predecessor #39 followup)"
