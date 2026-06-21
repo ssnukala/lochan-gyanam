@@ -278,6 +278,27 @@ if [[ -x "$DAKSH_CLI" ]]; then
     # unauthenticated captures (patent demo pages) still have value.
     note "pw-login FAILED — authenticated captures will abort:"
     note "  $(printf '%s' "$PW_LOGIN_OUT" | tail -1)"
+  elif [[ -n "$PW_USER" ]]; then
+    # storageState routing bridge: pw-login with an explicit --user writes a
+    # PER-PERSONA file `storageState.<slug>.json` (so two personas don't
+    # overwrite each other), but the sidecar bind-mounts the DEFAULT
+    # `apps/<app>/storageState.json` (compose.playwright.yml). Without this copy
+    # the persona file is orphaned → the sidecar reads a STALE default → every
+    # persona captures as the same default user (the role-differentiation bug).
+    # Parse the written filename from pw-login's own "saved to <file>" line
+    # (authoritative — no need to re-derive the slug rule) and promote it to the
+    # default the sidecar reads, so the capture authenticates AS this persona.
+    _state_file="$(printf '%s\n' "$PW_LOGIN_OUT" | sed -n 's/.*storageState saved to \(storageState[^ ]*\.json\).*/\1/p' | tail -1)"
+    if [[ -n "$_state_file" && "$_state_file" != "storageState.json" ]]; then
+      _state_src="$GYANAM_DIR/apps/$APP/$_state_file"
+      _state_dst="$GYANAM_DIR/apps/$APP/storageState.json"
+      if [[ -f "$_state_src" ]]; then
+        cp "$_state_src" "$_state_dst"
+        note "promoted $_state_file → storageState.json (sidecar reads THIS persona: $PW_USER)"
+      else
+        note "WARN: expected per-persona state $_state_src not found — sidecar may read a stale default"
+      fi
+    fi
   fi
 else
   note "daksh-cli not found at $DAKSH_CLI — skipping §D7e pw-login self-heal"
