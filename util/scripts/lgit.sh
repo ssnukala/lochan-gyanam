@@ -73,6 +73,116 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 GYANAM_DIR="$(cd "$SCRIPT_DIR/../.." && pwd)"
 REPOS_JSON="$GYANAM_DIR/repos.json"
 
+# ── resolve-repo: map a workspace PATH/GLOB → owning org/repo ───────────
+#
+# The INVERSE of resolve_repos_json_path() (which maps org/repo → on-disk
+# path). This maps a path/glob (a §8.1 file-glob, a package dir, a single
+# file) → the org/repo that owns it, via longest-prefix-match against the
+# repos.json registry — the industry-standard tree-of-repos resolution
+# (Nx `affected`, Turborepo, pnpm `--filter`, Bazel all do longest-prefix
+# match of a path against a project registry). repos.json is the registry
+# lgit/lgh/deploy already trust; we add NO parallel mapping.
+#
+# Why longest-prefix-match against the registry, NOT is_dir(): a file-glob
+# can name a FILE (`.../engine.py`), a brace/comma set (`{a,b}.py`), or a
+# path NOT YET on disk — none of which is_dir() resolves. A STRING prefix
+# match against the registry resolves all of them; when the path IS on
+# disk we additionally confirm with git (ground-truth, agrees with the
+# registry by construction).
+#
+# Output: prints the org/repo on success (exit 0); on failure prints a
+# clear error to stderr + exits non-zero — NEVER prints a wrong/guessed
+# repo (the silent-wrong-repo fallback was the bug this retires).
+#
+# Usage: lgit resolve-repo <path-or-glob>
+#   The <path-or-glob> may be absolute, or relative to the gyanam root.
+cmd_resolve_repo() {
+  local raw="${1:-}"
+  if [[ -z "$raw" ]]; then
+    echo "ERROR: resolve-repo requires a <path-or-glob> argument." >&2
+    echo "       Usage: lgit resolve-repo <path-or-glob>" >&2
+    return 2
+  fi
+  if [[ -f "$REPOS_JSON" ]] && command -v jq >/dev/null 2>&1; then :; else
+    echo "ERROR: resolve-repo needs repos.json + jq (registry lookup)." >&2
+    echo "       repos.json: $REPOS_JSON" >&2
+    return 2
+  fi
+
+  # 1. Normalize the glob to a single candidate path RELATIVE to gyanam.
+  local cand="$raw"
+  cand="${cand#"$GYANAM_DIR"/}"        # strip an absolute gyanam prefix if present
+  cand="${cand#/}"                      # strip a stray leading slash
+  cand="${cand%%,*}"                    # brace/comma set → FIRST component
+  cand="${cand//\{/}"; cand="${cand//\}/}"  # drop any leftover brace chars
+  cand="${cand%%\**}"                   # strip from the first '*' onward (handles /** and *.py)
+  cand="${cand%/}"                      # strip a trailing slash
+  if [[ -z "$cand" ]]; then
+    echo "ERROR: could not derive a path from glob '$raw'." >&2
+    echo "       Pass a path-glob (e.g. framework/lochan/packages/X/**) or --repo <org/repo>." >&2
+    return 1
+  fi
+
+  # 2. Longest-prefix-match against the registry. Registry holds
+  #    path<TAB>org/repo (the repos.json entries). We pick the LONGEST
+  #    registry path that is a prefix of the candidate (the most-specific
+  #    repo). A pure string match — works even when the path isn't on disk
+  #    yet (the key advantage over is_dir()).
+  #
+  #    NO umbrella catch-all: if no registry path is a prefix, we FAIL LOUD
+  #    rather than silently returning the superproject. The silent
+  #    superproject fallback IS the bug this subcommand retires (G4 — it
+  #    landed all 3 workers in the wrong repo). Prose / unresolvable input
+  #    → non-zero exit, nothing printed (per [[no-silent-try-except]]).
+  local registry
+  registry="$(jq -r '
+      [.framework[]?, .mandi_common[]?, .mandi_domain[]?]
+      | .[]
+      | select(.path? and .url?)
+      | .path + "\t" + (.url | sub("^https://github.com/"; "") | sub("\\.git$"; ""))
+    ' "$REPOS_JSON")"
+
+  local best_path="" best_repo="" rpath rrepo
+  while IFS=$'\t' read -r rpath rrepo; do
+    [[ -n "$rpath" && -n "$rrepo" ]] || continue
+    if [[ "$cand" == "$rpath" || "$cand" == "$rpath"/* ]]; then
+      if [[ ${#rpath} -gt ${#best_path} ]]; then
+        best_path="$rpath"; best_repo="$rrepo"
+      fi
+    fi
+  done <<< "$registry"
+
+  if [[ -z "$best_repo" ]]; then
+    echo "ERROR: could not resolve repo for '$raw' (candidate path '$cand')." >&2
+    echo "       No repos.json registry path is a prefix of it. Pass --repo <org/repo>" >&2
+    echo "       or give a §8.1 row a resolvable package file-glob." >&2
+    return 1
+  fi
+
+  # 3. If the path IS on disk, confirm with git (ground-truth). git must
+  #    agree with the registry; a mismatch means a stale clone/registry —
+  #    fail loud rather than emit a possibly-wrong repo.
+  local on_disk="$GYANAM_DIR/$best_path"
+  if [[ -e "$on_disk" ]]; then
+    local git_url git_repo
+    git_url="$(git -C "$on_disk" remote get-url origin 2>/dev/null || true)"
+    if [[ -n "$git_url" ]]; then
+      git_repo="$git_url"
+      git_repo="${git_repo#https://github.com/}"
+      git_repo="${git_repo#git@github.com:}"
+      git_repo="${git_repo%.git}"
+      if [[ -n "$git_repo" && "$git_repo" != "$best_repo" ]]; then
+        echo "ERROR: registry says '$best_repo' for '$cand' but git origin at $on_disk is '$git_repo'." >&2
+        echo "       Stale repos.json or mis-pointed clone — fix the map/clone before resolving." >&2
+        return 5
+      fi
+    fi
+  fi
+
+  printf '%s\n' "$best_repo"
+  return 0
+}
+
 # ── Argument parsing ───────────────────────────────────────────────────
 if [[ $# -lt 1 ]]; then
   cat >&2 <<EOF
@@ -93,6 +203,17 @@ fi
 
 REPO_ARG_RAW="$1"
 shift
+
+# ── resolve-repo dispatch (path→org/repo) ──────────────────────────────
+# Intercepted BEFORE the @-split + org/repo-shape validation: its argument
+# is a workspace PATH/GLOB, not an org/repo. Owned by lgit because lgit owns
+# repos.json — one authoritative path→repo resolver, reused by claim-task +
+# any tooling that needs "which repo owns this path" (fix-at-source: no 3rd
+# inline copy).
+if [[ "$REPO_ARG_RAW" == "resolve-repo" ]]; then
+  cmd_resolve_repo "$@"
+  exit $?
+fi
 
 # Split optional @<chunk-id> suffix for worktree routing.
 WORKTREE_ID=""
