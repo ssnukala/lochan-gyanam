@@ -453,8 +453,16 @@ EOF
   fi
 
   echo "lgit: creating worktree '$chunk_id' on '$REPO_ARG' (branch=$branch base=$base)" >&2
-  # Refresh the base ref so the new worktree starts off latest.
-  git -C "$CANONICAL_PATH" fetch origin "${base#origin/}" >/dev/null 2>&1 || true
+  # Refresh the base ref so the new worktree starts off latest. Keep working OFFLINE
+  # (don't hard-fail if the fetch can't reach the remote) — but make the failure OBSERVABLE
+  # (W5/G7, 2026-06-23): a swallowed fetch failure ([[no-silent-try-except]]) silently
+  # creates the worktree on a STALE cached base, which is exactly the stale-base merge-regression
+  # class (G5). So: narrow handled outcome, NOT a swallow — capture the failure and WARN to stderr.
+  if ! git -C "$CANONICAL_PATH" fetch origin "${base#origin/}" >/dev/null 2>&1; then
+    echo "WARNING: fetch origin/${base#origin/} failed — worktree may be created on a STALE base" >&2
+    echo "         (could feed a stale-base merge regression; the lgh pre-merge guard will still" >&2
+    echo "         refuse a behind branch at merge-time)." >&2
+  fi
   exec git -C "$CANONICAL_PATH" worktree add -b "$branch" "$wt_path" "$base"
 }
 
