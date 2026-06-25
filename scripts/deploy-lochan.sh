@@ -51,6 +51,7 @@ PULL=1               # pull repos?
 BUILD=1              # build base images?
 DEPLOY=1             # start/restart containers?
 PULL_ONLY=0          # short-circuit after pull
+DEPLOY_FAILED=0      # set to 1 if any app's bring-up fails → exit 1 at the end
 
 while (( $# )); do
   case "$1" in
@@ -173,11 +174,22 @@ if (( PULL )); then
     sect "Phase 1b: Sync domain repos for requested apps"
     local_domains=()
     for app in "${APPS[@]}"; do
-      mapfile -t app_doms < <(repos_app_domains "$app")
-      for d in "${app_doms[@]}"; do local_domains+=("$d"); done
+      # bash-3.2-compatible array read (macOS host bash is 3.2.57; `mapfile`
+      # is bash-4+). The while-read-into-array idiom is the portable equivalent.
+      app_doms=()
+      while IFS= read -r _line; do app_doms+=("$_line"); done < <(repos_app_domains "$app")
+      # guard empty-array expansion under set -u (bash 3.2)
+      (( ${#app_doms[@]} > 0 )) && for d in "${app_doms[@]}"; do local_domains+=("$d"); done
     done
-    # dedupe
-    mapfile -t local_domains < <(printf "%s\n" "${local_domains[@]}" | sort -u)
+    # dedupe (bash-3.2-compatible — see note above). Guard the empty-array
+    # expansion: under `set -u`, bash 3.2 errors on "${arr[@]}" when arr is
+    # empty (unbound variable), so only dedupe when there's something to read.
+    if (( ${#local_domains[@]} > 0 )); then
+      _deduped=()
+      while IFS= read -r _line; do _deduped+=("$_line"); done \
+        < <(printf "%s\n" "${local_domains[@]}" | sort -u)
+      local_domains=("${_deduped[@]}")
+    fi
 
     if (( ${#local_domains[@]} == 0 )); then
       warn "no domain repos needed for requested apps (framework-only)"
@@ -224,15 +236,35 @@ if (( DEPLOY )) && (( ${#APPS[@]} > 0 )); then
   sect "Phase 3: Deploy apps ($MODE mode)"
   for app in "${APPS[@]}"; do
     app_dir="$GYANAM_DIR/apps/$app"
-    [[ -d "$app_dir" ]] || { err "app not found: $app_dir"; continue; }
+    [[ -d "$app_dir" ]] || { err "app not found: $app_dir"; DEPLOY_FAILED=1; continue; }
 
     compose_file="compose.${MODE}.yml"
     [[ -f "$app_dir/$compose_file" ]] || compose_file="compose.yml"
-    [[ -f "$app_dir/$compose_file" ]] || { err "$app: no compose file (tried compose.${MODE}.yml, compose.yml)"; continue; }
+    [[ -f "$app_dir/$compose_file" ]] || { err "$app: no compose file (tried compose.${MODE}.yml, compose.yml)"; DEPLOY_FAILED=1; continue; }
 
     echo "  [$app] using $compose_file"
-    (
+    # Prod/staging compose declares `env_file: ${ENV_FILE:-.env.prod}`, but no
+    # app ships a `.env.prod` — only `.env`. Without this, compose falls back to
+    # a non-existent file and the bring-up fails INSIDE the subshell. Resolve
+    # the env file loudly: prefer the mode-specific file, else `.env`, else
+    # fail (do NOT silently proceed with a missing env — [[no-silent-try-except]]).
+    app_env_file=".env.${MODE}"
+    if [[ ! -f "$app_dir/$app_env_file" ]]; then
+      if [[ -f "$app_dir/.env" ]]; then
+        app_env_file=".env"
+      else
+        err "$app: no env file (tried .env.${MODE}, .env) — cannot deploy"
+        DEPLOY_FAILED=1
+        continue
+      fi
+    fi
+
+    # Surface the subshell's exit status — a failed `docker compose up` must
+    # NOT be reported as "restarted". The original printed success
+    # unconditionally after the subshell, masking a failed bring-up as exit-0.
+    if (
       cd "$app_dir"
+      export ENV_FILE="$app_env_file"
       docker compose -f "$compose_file" up -d --force-recreate --build
 
       # Dev bring-up B1 (founder-ratified 2026-06-19): the generated
@@ -253,9 +285,20 @@ if (( DEPLOY )) && (( ${#APPS[@]} > 0 )); then
         docker compose -f "$compose_file" restart backend \
           || warn "$app: backend restart after watch sync failed — domain packages may be absent (app could boot framework-only)"
       fi
-    )
-    log "$app: restarted"
+    ); then
+      log "$app: deployed ($compose_file, env=$app_env_file)"
+    else
+      err "$app: deploy FAILED (docker compose bring-up exited non-zero) — see output above"
+      DEPLOY_FAILED=1
+    fi
   done
+  # Fail the whole run loudly if any app failed to deploy — never exit 0 on a
+  # partial/failed deploy ([[no-silent-try-except]]; the old behavior masked
+  # Phase-1b/Phase-3 failures as exit-0 "deployed nothing").
+  if (( ${DEPLOY_FAILED:-0} )); then
+    err "one or more apps failed to deploy"
+    exit 1
+  fi
 elif (( ${#APPS[@]} == 0 )); then
   warn "no apps requested — use --app <name> to deploy one or more"
 fi
