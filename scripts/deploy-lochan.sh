@@ -213,20 +213,35 @@ if (( BUILD )); then
   sect "Phase 2: Build framework base images"
   cd "$GYANAM_DIR"
 
+  # docker_build <dockerfile> <tag> [target]
+  # The optional <target> selects a specific stage of a multi-stage Dockerfile.
+  # Without it `docker build` builds the LAST stage — which for the multi-stage
+  # 02-frontend-base.Dockerfile is `test` (a Playwright sidecar whose
+  # `npx playwright install` is irrelevant to + breaks the deploy). The deploy
+  # must target the mode's runtime stage, matching what the app Dockerfiles
+  # consume (compose.dev.yml → `lochan-frontend-base:dev`; Dockerfile.frontend
+  # → `lochan-frontend-base:prod`). Mirrors build-app.sh's targeted builds.
   docker_build() {
-    local file="$1" tag="$2"
-    echo -n "  build $tag ($file) ... "
-    if docker build --quiet -f "$file" -t "$tag" . >/dev/null; then
+    local file="$1" tag="$2" target="${3:-}"
+    local target_args=()
+    [[ -n "$target" ]] && target_args=(--target "$target")
+    echo -n "  build $tag ($file${target:+ --target $target}) ... "
+    # ${arr[@]+"${arr[@]}"} — bash-3.2-safe expansion of a possibly-empty array
+    # under set -u (a bare "${arr[@]}" errors "unbound variable" when empty).
+    if docker build --quiet ${target_args[@]+"${target_args[@]}"} -f "$file" -t "$tag" . >/dev/null; then
       echo "ok"
     else
-      err "build failed: $tag"; return 1
+      err "build failed: $tag"; DEPLOY_FAILED=1; return 1
     fi
   }
 
+  # Single-final-stage images — no target needed (last stage IS the artifact).
   docker_build docker/01-backend-deps.Dockerfile  lochan-deps-backend:latest
   docker_build docker/01-frontend-deps.Dockerfile lochan-deps-frontend:latest
   docker_build docker/02-backend-base.Dockerfile  lochan-backend-base:latest
-  docker_build docker/02-frontend-base.Dockerfile lochan-frontend-base:latest
+  # Multi-stage frontend base (dev → prod → test): build the MODE's runtime
+  # stage + tag it as the app Dockerfiles expect (NOT :latest = the test stage).
+  docker_build docker/02-frontend-base.Dockerfile "lochan-frontend-base:${MODE}" "$MODE"
 else
   warn "skipping base image builds (--skip-build)"
 fi
