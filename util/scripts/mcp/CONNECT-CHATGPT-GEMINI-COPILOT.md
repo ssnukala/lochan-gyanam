@@ -1,31 +1,70 @@
 # Connect ChatGPT · Gemini · Copilot desktop apps to a Lochan app's MCP
 
-**TL;DR — all three connect the SAME way Claude does:** point the app's MCP /
-"custom connector" feature at the Lochan app's **SSE endpoint**, and the app
-runs the standard OAuth login (the RFC-9728/8414 discovery + DCR flow that
-#1534/#1535 fixed). You log in as a real Lochan user; tools then run with that
-user's RBAC.
+**The three apps do NOT all behave like Claude — each has a different integration
+model. Confirmed for Gemini by Gemini itself (2026-06-26): the Gemini app has no
+MCP connector.** Don't assume parity with Claude's `mcpServers` config.
 
-The two live endpoints (both already on the public HTTPS issuer):
+The two live MCP SSE endpoints (public HTTPS issuer, already serving):
 
-| App | MCP SSE endpoint (this is the only URL you paste) |
+| App | MCP SSE endpoint |
 |---|---|
 | **fwprod01** | `https://staging.lochan.ai/api/jharokha/mcp/sse` |
 | **longterm01** | `https://staging.longterm366.ai/api/jharokha/mcp/sse` |
 
-> **Why SSE, not the ai-plugin/OpenAPI-Action path:** the modern desktop apps
-> all speak **MCP-over-SSE with OAuth** (the same protocol Claude Desktop uses).
-> The legacy per-platform `ai-plugin.json` / OpenAPI-Action adapters advertise
-> OAuth at `/api/jharokha/auth/{platform}/*`, which 404s (dead routes) — that is
-> the OLD ChatGPT-plugin mechanism, NOT how these desktop apps connect. Use the
-> SSE endpoint above for all three.
+| Client | Integration model | How to connect to Lochan |
+|---|---|---|
+| **Claude** | Native MCP-SSE + OAuth | `claude_desktop_config.json` `mcpServers` → `mcp-remote <sse-url>`. ✅ Working. |
+| **Gemini** | **Function calling (NO MCP connector)** | Run **`util/scripts/mcp/gemini-mcp-bridge.py <app>`** — a local runner that pulls Lochan's full MCP tool list (via `mcp-remote`'s OAuth+SSE) and hands them to Gemini's function-calling API. Schema-driven; reuses OAuth+RBAC. (Gemini's own suggested hand-rolled-per-endpoint approach is NOT what we use — it re-encodes what MCP already exposes.) |
+| **ChatGPT** | ⚠ UNVERIFIED — likely a server-side Connector (Developer mode) over SSE+OAuth, but NOT confirmed against ChatGPT's own UI/docs. Treat the steps below as a starting point, not gospel. | Settings → Connectors → custom MCP (if present) → paste SSE URL. If ChatGPT (like Gemini) only does function calling / Actions, the `gemini-mcp-bridge.py` pattern ports to the OpenAI SDK (tools = the same MCP tool list). |
+| **Copilot** | ⚠ UNVERIFIED — likely Copilot Studio MCP-server (SSE+OAuth), but NOT confirmed. | Copilot Studio → Tools → Add MCP server → SSE URL. |
+
+> **Honesty note:** the Gemini section below is CORRECTED to function-calling.
+> The ChatGPT/Copilot sections are best-effort and **need verification against
+> each app's actual current UI** — I assumed MCP-SSE parity, and Gemini already
+> disproved that assumption for itself. Verify the in-app flow before relying on
+> those two; if either turns out to be function-calling-only, reuse the bridge
+> pattern with that vendor's SDK.
+
+> **Why SSE / the canonical AS, not the ai-plugin path:** the legacy per-platform
+> `ai-plugin.json` / OpenAPI-Action adapters advertise OAuth at
+> `/api/jharokha/auth/{platform}/*`, which **404s** (dead routes — the real AS is
+> `/api/oauth/provider/*`). That's the OLD ChatGPT-plugin mechanism. All current
+> paths (MCP-SSE for Claude, the bridge for Gemini) use the working AS.
 
 ---
 
-## ChatGPT (desktop / web) — Settings → Connectors → Custom MCP
+## Gemini — the MCP→function-calling bridge (NO connector UI)
 
-ChatGPT's **Developer mode → Connectors** (Plus/Pro/Business) accepts a custom
-MCP server over SSE with OAuth.
+Gemini's app has **no MCP connector**. Its model is API-side **function calling**
+with a local runner. We make that runner schema-driven so Gemini sees Lochan's
+ENTIRE autowired tool surface, not hand-coded endpoints:
+
+```bash
+pip install google-genai          # not on this host yet — use a venv
+export GEMINI_API_KEY=<your Google AI Studio key>
+
+util/scripts/mcp/gemini-mcp-bridge.py fwprod01 --list      # list the bridged Lochan tools (no key needed)
+util/scripts/mcp/gemini-mcp-bridge.py fwprod01 --ask "which users exist?"
+util/scripts/mcp/gemini-mcp-bridge.py longterm01           # interactive default prompt
+```
+
+First run opens a browser for the Lochan OAuth login (via `mcp-remote`, cached
+under `~/.mcp-auth`); you log in as a real Lochan user → that user's RBAC gates
+the tools. The runner: spawns `mcp-remote <sse-url>` (OAuth + SSE), `tools/list`
+over MCP, converts each tool's JSON-Schema into a Gemini `FunctionDeclaration`,
+then runs the Gemini ↔ `tools/call` loop. New app / new tool = zero code change.
+
+For Gemini IN THE APP (not the SDK): the app itself can't call your private
+staging server, so the bridge script is the integration — run it from a terminal
+(or wire it into a small local service the Gemini app talks to). There is no
+in-app "add MCP server" box to fill.
+
+---
+
+## ChatGPT (desktop / web) — ⚠ UNVERIFIED: likely Settings → Connectors → Custom MCP
+
+⚠ **Not yet verified against ChatGPT's actual UI** (I assumed MCP-SSE parity;
+Gemini disproved that for itself). If ChatGPT has a custom-MCP connector:
 
 1. ChatGPT → **Settings → Connectors** (or **Apps & Connectors**) → **Advanced /
    Developer mode** → **Add custom connector** (a.k.a. "Create / Add MCP server").
