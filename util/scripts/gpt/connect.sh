@@ -31,7 +31,9 @@
 #   util/scripts/gpt/connect.sh fwprod01 --ask "which users exist?"
 set -euo pipefail
 
-REPO="/Users/srinivasnukala/Dropbox/Sites/docker/gyanam"
+# Derive the gyanam repo root from this script's own location
+# (util/scripts/gpt/<script> → three levels up) so it works on any machine.
+REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
 BRIDGE="$REPO/util/scripts/mcp/chatgpt-mcp-bridge.py"
 VENV="$REPO/util/scripts/gpt/.venv"
 cd "$REPO"

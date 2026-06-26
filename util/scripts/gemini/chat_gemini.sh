@@ -46,7 +46,9 @@
 #   GEMINI_API_KEY=... util/scripts/gemini/chat_gemini.sh fwprod01
 set -euo pipefail
 
-REPO="/Users/srinivasnukala/Dropbox/Sites/docker/gyanam"
+# Derive the gyanam repo root from this script's own location
+# (util/scripts/gemini/<script> → three levels up) so it works on any machine.
+REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
 BRIDGE="$REPO/util/scripts/mcp/gemini-mcp-bridge.py"
 VENV="$REPO/util/scripts/gemini/.venv"
 cd "$REPO"
