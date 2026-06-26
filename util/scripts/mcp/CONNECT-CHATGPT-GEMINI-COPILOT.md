@@ -16,15 +16,19 @@ The two live MCP SSE endpoints (public HTTPS issuer, already serving):
 | **Claude** | Native MCP-SSE + OAuth | `claude_desktop_config.json` `mcpServers` → `mcp-remote <sse-url>`. ✅ Working. |
 | **Gemini** | **Function calling (NO MCP connector)** | Run **`util/scripts/mcp/gemini-mcp-bridge.py <app>`** — a local runner that pulls Lochan's full MCP tool list (via `mcp-remote`'s OAuth+SSE) and hands them to Gemini's function-calling API. Schema-driven; reuses OAuth+RBAC. (Gemini's own suggested hand-rolled-per-endpoint approach is NOT what we use — it re-encodes what MCP already exposes.) |
 | **ChatGPT** | ✅ Native MCP-SSE connector (CONFIRMED by ChatGPT, 2026-06-26) — "ChatGPT does not use a local JSON config file; Settings → Connectors/Tools → Add MCP Server → Remote (http/sse)." Plan/client-version gated. | Settings → Connectors → Add MCP Server → **Remote (http/sse)** → paste the SSE URL. NOTE: do NOT follow ChatGPT's "build a FastMCP server from scratch" advice — Lochan's MCP server already exists at that URL with 32 tools; you're connecting to it, not building one. |
-| **Copilot** | ⚠ UNVERIFIED — likely Copilot Studio MCP-server (SSE+OAuth), but NOT confirmed. | Copilot Studio → Tools → Add MCP server → SSE URL. |
+| **Copilot** | ✅ Native MCP (CONFIRMED by Copilot, 2026-06-26) — "Copilot does not use a local JSON config file"; connects via **Cloud MCP Integration** (register the remote endpoint) or **app-embedded** `copilot.attachMcpServer({...})`. | Register the Lochan MCP endpoint with Copilot. ⚠ Copilot's answer got 3 Lochan specifics WRONG (corrected below): use the **SSE** URL `…/api/jharokha/mcp/sse` (NOT `wss://…/mcp` — Lochan has no WebSocket and no bare `/mcp` route), and **OAuth** (NOT a static pasted bearer token). |
 
-> **Verification status (2026-06-26):** Gemini = function-calling, no connector
-> (confirmed by Gemini → use `gemini-mcp-bridge.py`). ChatGPT = native MCP-SSE
-> connector via Settings → Connectors → Remote (http/sse) (confirmed by ChatGPT;
-> plan-gated). **Copilot is still UNVERIFIED** — the Copilot Studio MCP-server
-> step below is best-effort; check it against the actual UI. If Copilot turns out
-> function-calling-only, the `gemini-mcp-bridge.py` pattern ports to its SDK
-> (the tool list is the same Lochan MCP surface).
+> **Verification status (2026-06-26 — all three confirmed by the apps themselves):**
+> • **Gemini** = function-calling, NO connector → use `gemini-mcp-bridge.py`.
+> • **ChatGPT** = native MCP-SSE connector (Settings → Connectors → Remote http/sse), plan-gated.
+> • **Copilot** = native MCP (Cloud Integration / `attachMcpServer`).
+> All three told you "we don't use a local JSON config file like Claude" — true,
+> but **all three also (a) suggested BUILDING a new FastMCP/ws server from scratch
+> and (b) ChatGPT/Copilot gave wrong Lochan specifics.** Lochan's MCP server
+> ALREADY exists at `…/api/jharokha/mcp/sse` with 32 tools — you CONNECT to it.
+> Corrected Lochan-specific facts (verified against the framework source):
+> **transport = SSE (`/api/jharokha/mcp/sse`), NOT WebSocket/`wss://`, NOT bare
+> `/mcp`; auth = OAuth (discovery+DCR), NOT a static pasted bearer token.**
 
 > **Why SSE / the canonical AS, not the ai-plugin path:** the legacy per-platform
 > `ai-plugin.json` / OpenAPI-Action adapters advertise OAuth at
@@ -88,22 +92,39 @@ scratch — Lochan's MCP server already exists at the SSE URL; you connect to it
 
 ---
 
-## Microsoft Copilot — Copilot Studio / M365 → Add an MCP server
+## Microsoft Copilot — ✅ register the Lochan MCP endpoint (Cloud Integration)
 
-M365 Copilot connects to MCP servers via **Copilot Studio** (Agents → Tools →
-Add an MCP server) or the Copilot connectors surface.
+**Confirmed by Copilot (2026-06-26):** "Unlike Claude Desktop, Copilot does not
+use a local JSON config file." It connects via **Cloud MCP Integration** (register
+your remote MCP server with Copilot — name + endpoint + auth + capabilities) or
+**app-embedded** (`copilot.attachMcpServer({ name, url, auth })` via the Copilot
+SDK, for embedding Copilot in your own web app).
 
-1. **Copilot Studio** → your agent → **Tools / Actions → Add → MCP server**
-   (or **Connectors → New connection → Model Context Protocol**).
-2. **Server URL:** the SSE endpoint from the table above. **Transport:** SSE.
-3. **Auth:** OAuth 2.0 (the discovery + DCR is automatic; no manifest upload).
-4. Authenticate as a Lochan user → Copilot lists the tools.
+Register Lochan via **Copilot Studio** (Agents → Tools → Add an MCP server) or the
+Cloud MCP registration surface, with these **CORRECTED Lochan values** (Copilot's
+own answer got these wrong):
 
-> Copilot is the most likely of the three to want a manifest instead of pure
-> MCP-SSE on some surfaces. If your Copilot surface asks for a **plugin manifest
-> / OpenAPI**, that path needs the per-platform OAuth routes which are currently
-> dead (see the framework note below) — prefer the MCP-server (SSE) path, which
-> uses the working `/api/oauth/provider/*` AS.
+1. **Server name:** `lochan` (or `lochan-longterm`).
+2. **Endpoint URL:** the **SSE** URL from the table above — e.g.
+   `https://staging.lochan.ai/api/jharokha/mcp/sse`.
+   - ❌ NOT `wss://staging.lochan.ai/mcp` — **Lochan has no WebSocket transport**
+     (verified: zero `websocket` routes in jharokha) and no bare `/mcp` route.
+     The transport is **SSE** at `/api/jharokha/mcp/sse` (+ POST `/mcp/message`).
+3. **Auth:** **OAuth 2.0** (the RFC-9728/8414 discovery + DCR is automatic).
+   - ❌ NOT a static pasted bearer token (`"token": "<YOUR_TOKEN>"`). Lochan mints
+     the token through the OAuth login — you authenticate as a real Lochan user,
+     and that user's RBAC gates the tools. There is no long-lived token to paste.
+4. **Capabilities:** tools (+ resources/prompts). Lochan exposes 32 autowired tools.
+
+> ⚠ Copilot's answer also walks you through BUILDING a Node `ws` MCP server from
+> scratch (`new WebSocketServer`, a `hello` tool, a `lochan-mcp/` project). Ignore
+> all of it — Lochan's MCP server already exists at the SSE URL. You're registering
+> the existing endpoint, not writing a new server. (Copilot didn't know yours exists.)
+>
+> If a Copilot surface only offers a **plugin manifest / OpenAPI** path instead of
+> MCP, that path needs the per-platform OAuth routes which are currently dead (see
+> the framework note below) — prefer the MCP path, which uses the working
+> `/api/oauth/provider/*` AS.
 
 ---
 
