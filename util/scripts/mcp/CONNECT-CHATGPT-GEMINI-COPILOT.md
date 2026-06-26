@@ -15,15 +15,16 @@ The two live MCP SSE endpoints (public HTTPS issuer, already serving):
 |---|---|---|
 | **Claude** | Native MCP-SSE + OAuth | `claude_desktop_config.json` `mcpServers` → `mcp-remote <sse-url>`. ✅ Working. |
 | **Gemini** | **Function calling (NO MCP connector)** | Run **`util/scripts/mcp/gemini-mcp-bridge.py <app>`** — a local runner that pulls Lochan's full MCP tool list (via `mcp-remote`'s OAuth+SSE) and hands them to Gemini's function-calling API. Schema-driven; reuses OAuth+RBAC. (Gemini's own suggested hand-rolled-per-endpoint approach is NOT what we use — it re-encodes what MCP already exposes.) |
-| **ChatGPT** | ⚠ UNVERIFIED — likely a server-side Connector (Developer mode) over SSE+OAuth, but NOT confirmed against ChatGPT's own UI/docs. Treat the steps below as a starting point, not gospel. | Settings → Connectors → custom MCP (if present) → paste SSE URL. If ChatGPT (like Gemini) only does function calling / Actions, the `gemini-mcp-bridge.py` pattern ports to the OpenAI SDK (tools = the same MCP tool list). |
+| **ChatGPT** | ✅ Native MCP-SSE connector (CONFIRMED by ChatGPT, 2026-06-26) — "ChatGPT does not use a local JSON config file; Settings → Connectors/Tools → Add MCP Server → Remote (http/sse)." Plan/client-version gated. | Settings → Connectors → Add MCP Server → **Remote (http/sse)** → paste the SSE URL. NOTE: do NOT follow ChatGPT's "build a FastMCP server from scratch" advice — Lochan's MCP server already exists at that URL with 32 tools; you're connecting to it, not building one. |
 | **Copilot** | ⚠ UNVERIFIED — likely Copilot Studio MCP-server (SSE+OAuth), but NOT confirmed. | Copilot Studio → Tools → Add MCP server → SSE URL. |
 
-> **Honesty note:** the Gemini section below is CORRECTED to function-calling.
-> The ChatGPT/Copilot sections are best-effort and **need verification against
-> each app's actual current UI** — I assumed MCP-SSE parity, and Gemini already
-> disproved that assumption for itself. Verify the in-app flow before relying on
-> those two; if either turns out to be function-calling-only, reuse the bridge
-> pattern with that vendor's SDK.
+> **Verification status (2026-06-26):** Gemini = function-calling, no connector
+> (confirmed by Gemini → use `gemini-mcp-bridge.py`). ChatGPT = native MCP-SSE
+> connector via Settings → Connectors → Remote (http/sse) (confirmed by ChatGPT;
+> plan-gated). **Copilot is still UNVERIFIED** — the Copilot Studio MCP-server
+> step below is best-effort; check it against the actual UI. If Copilot turns out
+> function-calling-only, the `gemini-mcp-bridge.py` pattern ports to its SDK
+> (the tool list is the same Lochan MCP surface).
 
 > **Why SSE / the canonical AS, not the ai-plugin path:** the legacy per-platform
 > `ai-plugin.json` / OpenAPI-Action adapters advertise OAuth at
@@ -61,10 +62,12 @@ in-app "add MCP server" box to fill.
 
 ---
 
-## ChatGPT (desktop / web) — ⚠ UNVERIFIED: likely Settings → Connectors → Custom MCP
+## ChatGPT (desktop / web) — ✅ Settings → Connectors → Add MCP Server (Remote http/sse)
 
-⚠ **Not yet verified against ChatGPT's actual UI** (I assumed MCP-SSE parity;
-Gemini disproved that for itself). If ChatGPT has a custom-MCP connector:
+**Confirmed by ChatGPT (2026-06-26):** "Unlike Claude Desktop, ChatGPT does not
+use a local JSON config file" — you add the MCP server in-app. Plan/client-version
+gated. ⚠ Ignore ChatGPT's accompanying advice to *build* a FastMCP server from
+scratch — Lochan's MCP server already exists at the SSE URL; you connect to it.
 
 1. ChatGPT → **Settings → Connectors** (or **Apps & Connectors**) → **Advanced /
    Developer mode** → **Add custom connector** (a.k.a. "Create / Add MCP server").
@@ -80,22 +83,8 @@ Gemini disproved that for itself). If ChatGPT has a custom-MCP connector:
 > that's the legacy plugin path — use the **MCP / connector** box instead. The
 > OpenAPI manifest still works for a Custom GPT Action, but it's a separate,
 > non-MCP flow.
-
----
-
-## Google Gemini — Gemini app → Settings → Connectors / MCP
-
-Gemini's connector surface (Gemini app / AI Studio "Connectors") takes an MCP
-SSE URL with OAuth, same as Claude.
-
-1. Gemini → **Settings → Connectors** (or **Extensions / MCP servers**) → **Add**.
-2. **Transport:** SSE. **URL:** the SSE endpoint from the table above.
-3. **Auth:** OAuth (auto-discovered).
-4. Log in as a Lochan user in the browser tab Gemini opens → connected.
-
-> Gemini runs in Google's cloud, so it can only reach a **public HTTPS** URL —
-> the `staging.*` tunnel URLs above satisfy that (the issuer is already public).
-> A bare `localhost` URL will NOT work for Gemini.
+>
+> (Gemini has NO such connector — see the Gemini section above; use the bridge.)
 
 ---
 
