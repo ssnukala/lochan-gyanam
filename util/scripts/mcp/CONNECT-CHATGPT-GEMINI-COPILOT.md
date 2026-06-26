@@ -15,20 +15,25 @@ The two live MCP SSE endpoints (public HTTPS issuer, already serving):
 |---|---|---|
 | **Claude** | Native MCP-SSE + OAuth | `claude_desktop_config.json` `mcpServers` → `mcp-remote <sse-url>`. ✅ Working. |
 | **Gemini** | **Function calling (NO MCP connector)** | Run **`util/scripts/mcp/gemini-mcp-bridge.py <app>`** — a local runner that pulls Lochan's full MCP tool list (via `mcp-remote`'s OAuth+SSE) and hands them to Gemini's function-calling API. Schema-driven; reuses OAuth+RBAC. (Gemini's own suggested hand-rolled-per-endpoint approach is NOT what we use — it re-encodes what MCP already exposes.) |
-| **ChatGPT** | ✅ Native MCP-SSE connector (CONFIRMED by ChatGPT, 2026-06-26) — "ChatGPT does not use a local JSON config file; Settings → Connectors/Tools → Add MCP Server → Remote (http/sse)." Plan/client-version gated. | Settings → Connectors → Add MCP Server → **Remote (http/sse)** → paste the SSE URL. NOTE: do NOT follow ChatGPT's "build a FastMCP server from scratch" advice — Lochan's MCP server already exists at that URL with 32 tools; you're connecting to it, not building one. |
+| **ChatGPT** | ⚠ NO usable custom-MCP UI in the consumer desktop app (founder verified 2026-06-26: the "Add MCP Server → Remote" flow ChatGPT's own answer described **does not exist in the installed app**, v1.2026.160). The app's "Connectors" are pre-built (Drive/HubSpot/…), not arbitrary remote MCP. Custom remote-MCP is an Enterprise/Business "Developer mode" or API-Platform feature. | **Two real options:** (1) if you have ChatGPT Business/Enterprise with Developer-mode connectors, register the remote MCP there (SSE URL + OAuth); (2) otherwise use the **bridge** — OpenAI's Responses API supports a remote `mcp` tool, OR the same `gemini-mcp-bridge.py` pattern ported to the OpenAI SDK (tools = the same Lochan MCP list). The consumer desktop app has no path. |
 | **Copilot** | ✅ Native MCP (CONFIRMED by Copilot, 2026-06-26) — "Copilot does not use a local JSON config file"; connects via **Cloud MCP Integration** (register the remote endpoint) or **app-embedded** `copilot.attachMcpServer({...})`. | Register the Lochan MCP endpoint with Copilot. ⚠ Copilot's answer got 3 Lochan specifics WRONG (corrected below): use the **SSE** URL `…/api/jharokha/mcp/sse` (NOT `wss://…/mcp` — Lochan has no WebSocket and no bare `/mcp` route), and **OAuth** (NOT a static pasted bearer token). |
 
-> **Verification status (2026-06-26 — all three confirmed by the apps themselves):**
-> • **Gemini** = function-calling, NO connector → use `gemini-mcp-bridge.py`.
-> • **ChatGPT** = native MCP-SSE connector (Settings → Connectors → Remote http/sse), plan-gated.
-> • **Copilot** = native MCP (Cloud Integration / `attachMcpServer`).
-> All three told you "we don't use a local JSON config file like Claude" — true,
-> but **all three also (a) suggested BUILDING a new FastMCP/ws server from scratch
-> and (b) ChatGPT/Copilot gave wrong Lochan specifics.** Lochan's MCP server
-> ALREADY exists at `…/api/jharokha/mcp/sse` with 32 tools — you CONNECT to it.
-> Corrected Lochan-specific facts (verified against the framework source):
-> **transport = SSE (`/api/jharokha/mcp/sse`), NOT WebSocket/`wss://`, NOT bare
-> `/mcp`; auth = OAuth (discovery+DCR), NOT a static pasted bearer token.**
+> **Verification status (2026-06-26) — TRUST THE ACTUAL UI, NOT THE APP'S ANSWER.**
+> Each app, asked "how do I connect to an MCP server", wrote a confident answer —
+> and each answer was partly WRONG about its own app:
+> • **Gemini** — correctly said it has no connector (→ `gemini-mcp-bridge.py`).
+> • **ChatGPT** — claimed "Settings → Connectors → Add MCP Server → Remote"; the
+>   founder checked the installed app (v1.2026.160) and **that UI does not exist**.
+>   Consumer ChatGPT has pre-built connectors only; custom remote-MCP is
+>   Enterprise/Developer-mode/API-Platform. → use the bridge / Responses API.
+> • **Copilot** — said native MCP (true) but gave wrong specifics (`wss://…/mcp`,
+>   static token). Needs UI verification like ChatGPT before relying on it.
+> Plus all three suggested BUILDING a new FastMCP/ws server from scratch — ignore:
+> Lochan's MCP server ALREADY exists at `…/api/jharokha/mcp/sse` with 32 tools.
+> **Lochan facts (verified in source):** transport = SSE (`/api/jharokha/mcp/sse`),
+> NOT WebSocket/`wss://`, NOT bare `/mcp`; auth = OAuth (discovery+DCR), NOT a
+> static pasted bearer token. **Lesson: an app's self-description is a claim;
+> only its installed UI is ground truth — verify there before trusting the answer.**
 
 > **Why SSE / the canonical AS, not the ai-plugin path:** the legacy per-platform
 > `ai-plugin.json` / OpenAPI-Action adapters advertise OAuth at
@@ -66,27 +71,44 @@ in-app "add MCP server" box to fill.
 
 ---
 
-## ChatGPT (desktop / web) — ✅ Settings → Connectors → Add MCP Server (Remote http/sse)
+## ChatGPT — ⚠ NO custom-MCP UI in the consumer desktop app (founder-verified)
 
-**Confirmed by ChatGPT (2026-06-26):** "Unlike Claude Desktop, ChatGPT does not
-use a local JSON config file" — you add the MCP server in-app. Plan/client-version
-gated. ⚠ Ignore ChatGPT's accompanying advice to *build* a FastMCP server from
-scratch — Lochan's MCP server already exists at the SSE URL; you connect to it.
+ChatGPT's written answer claimed a "Settings → Connectors → Add MCP Server →
+Remote (http/sse)" flow. **The founder checked the installed app (v1.2026.160):
+that UI does not exist.** Consumer ChatGPT's "Connectors" are pre-built
+(Google Drive, HubSpot, …) — there is no "add an arbitrary remote MCP server"
+box. Custom remote-MCP is gated to **ChatGPT Business/Enterprise "Developer mode"
+connectors** or the **OpenAI API Platform**, neither of which is the standard
+desktop app.
 
-1. ChatGPT → **Settings → Connectors** (or **Apps & Connectors**) → **Advanced /
-   Developer mode** → **Add custom connector** (a.k.a. "Create / Add MCP server").
-2. **Name:** `Lochan fwprod01` (or `Lochan longterm`).
-3. **MCP Server URL / SSE URL:** paste the SSE endpoint from the table above.
-4. **Authentication:** choose **OAuth** (ChatGPT auto-discovers the AS from the
-   server — no client id/secret to enter; it does Dynamic Client Registration).
-5. Save → ChatGPT opens the Lochan login in a browser → log in as a seeded user
-   (e.g. a super-admin, or a scoped user to see RBAC narrowing) → it connects and
-   lists Lochan's tools.
+So, two real paths (pick by what you actually have):
 
-> If ChatGPT shows only the older "Actions / Import from URL (OpenAPI)" box,
-> that's the legacy plugin path — use the **MCP / connector** box instead. The
-> OpenAPI manifest still works for a Custom GPT Action, but it's a separate,
-> non-MCP flow.
+**A. If you have ChatGPT Business/Enterprise with Developer-mode connectors:**
+register the remote MCP there — server URL = the Lochan **SSE** endpoint from the
+table above, auth = **OAuth** (DCR auto). (Verify the box exists in YOUR tier
+first — don't trust the written answer.)
+
+**B. Otherwise — the bridge (works on any plan, via the API):** OpenAI's
+**Responses API** has a first-class remote `mcp` tool:
+
+```python
+client.responses.create(
+    model="gpt-5", input="which users exist?",
+    tools=[{"type": "mcp", "server_label": "lochan",
+            "server_url": "https://staging.lochan.ai/api/jharokha/mcp/sse",
+            "require_approval": "never"}],
+)
+```
+
+or run the same **`gemini-mcp-bridge.py` pattern ported to the OpenAI SDK** — it
+pulls Lochan's tool list over `mcp-remote` and hands them to ChatGPT as
+function-calling tools, identical shape to the Gemini bridge. (A
+`chatgpt-mcp-bridge.py` can be added on request — same 100 lines, swap the model
+client.)
+
+> ⚠ Ignore ChatGPT's advice to *build* a FastMCP server from scratch — Lochan's
+> server already exists with 32 tools; you connect to it (Responses-API `mcp` tool
+> or the bridge), you don't build one.
 >
 > (Gemini has NO such connector — see the Gemini section above; use the bridge.)
 
