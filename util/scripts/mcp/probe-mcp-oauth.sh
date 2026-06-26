@@ -38,6 +38,34 @@ set -euo pipefail
 
 REPO="/Users/srinivasnukala/Dropbox/Sites/docker/gyanam"
 CLI="framework/lochan/packages/daksh/daksh-cli"
+
+# --self-test: run the script's OWN python helpers with no app/network, asserting
+# they parse + behave. This catches the #58 class of bug (a brace literal in a
+# bash-passed `python3 -c` string getting shell-brace-expanded → SyntaxError) at
+# CI time, so a broken probe can never merge again. Exits 0/1; touches nothing.
+if [[ "${1:-}" == "--self-test" ]]; then
+  fails=0
+  # 1. The record() JSON-build helper must emit valid JSON (NOT crash on braces).
+  out="$(python3 -c "import json,sys; print(json.dumps(dict(check=sys.argv[1],verdict=sys.argv[2],detail=sys.argv[3])))" c PASS d 2>&1)"
+  echo "$out" | python3 -c "import json,sys; o=json.load(sys.stdin); assert o['check']=='c' and o['verdict']=='PASS' and o['detail']=='d'" \
+    && echo "  [ok] record() JSON builder" || { echo "  [FAIL] record() JSON builder: $out"; fails=1; }
+  # 2. jget() must dig .data.response.<field> out of a daksh-api envelope.
+  got="$(printf '%s' '{"success":true,"data":{"status_code":200,"response":{"resource":"R"}}}' | python3 -c "
+import json,sys
+o=json.loads(sys.stdin.read())
+if isinstance(o,dict):
+    d=o.get('data',o); o=d.get('response',d) if isinstance(d,dict) else d
+cur=o
+for k in 'resource'.split('.'):
+    cur=cur.get(k) if isinstance(cur,dict) else None
+print(cur or '')")"
+  [[ "$got" == "R" ]] && echo "  [ok] jget() envelope unwrap" || { echo "  [FAIL] jget() unwrap got '$got'"; fails=1; }
+  # 3. Whole-script bash parse.
+  bash -n "$0" && echo "  [ok] bash -n parse" || { echo "  [FAIL] bash -n"; fails=1; }
+  [[ "$fails" -eq 0 ]] && echo "── SELF-TEST PASS ──" || echo "── SELF-TEST FAIL ──"
+  exit "$fails"
+fi
+
 APP="${1:-fwprod01}"
 USER_AUTH="${2:-}"
 RUN_LABEL="${3:-}"
@@ -73,18 +101,26 @@ dapi() {
 record() {
   local id="$1" verdict="$2" detail="$3"
   if [[ "$verdict" == "PASS" ]]; then PASS=$((PASS+1)); else FAIL=$((FAIL+1)); fi
-  RESULTS+=("$(python3 -c "import json,sys; print(json.dumps({'check':sys.argv[1],'verdict':sys.argv[2],'detail':sys.argv[3]}))" "$id" "$verdict" "$detail")")
+  # NOTE: build the dict with dict(...) NOT a {..} literal — a brace literal
+  # with commas inside a bash-passed `python3 -c "..."` string is brace-EXPANDED
+  # by the shell ({'a':..,'b':..} -> three words), which corrupted the program
+  # (the #58 self-crash). dict(k=v) has no braces, so the shell leaves it alone.
+  RESULTS+=("$(python3 -c "import json,sys; print(json.dumps(dict(check=sys.argv[1],verdict=sys.argv[2],detail=sys.argv[3])))" "$id" "$verdict" "$detail")")
   printf '  %-4s %-46s %s\n' "[$verdict]" "$id" "$detail"
 }
 
-# Extract a JSON field from a daksh-api json envelope (data may be at top level or under .data).
+# Extract a JSON field from a daksh-api json envelope. The real HTTP payload is
+# at  .data.response  (envelope: {success, command, data:{status_code, response,
+# app, url}, ...}); we also tolerate a bare or .data-wrapped body for robustness.
 jget() {
   python3 -c "
 import json,sys
 raw=sys.stdin.read().strip()
 try: o=json.loads(raw)
 except Exception: print(''); sys.exit()
-o=o.get('data',o) if isinstance(o,dict) else o
+if isinstance(o,dict):
+    d=o.get('data',o)
+    o=d.get('response',d) if isinstance(d,dict) else d
 cur=o
 for k in sys.argv[1].split('.'):
     if isinstance(cur,dict) and k in cur: cur=cur[k]
@@ -95,13 +131,26 @@ print(cur if isinstance(cur,str) else json.dumps(cur))
 
 echo "── MCP OAuth-discovery probe ── app=$APP  backend=$BACKEND_URL ──"
 
-# 1. RFC 8414 — Authorization-Server metadata.
+# 1. RFC 8414 — Authorization-Server metadata (bare).
 AS_DOC="$(dapi GET /.well-known/oauth-authorization-server)"
 AS_AUTHZ="$(printf '%s' "$AS_DOC" | jget authorization_endpoint)"
 if [[ -n "$AS_AUTHZ" ]]; then
   record "rfc8414-as-metadata" PASS "authorization_endpoint=$AS_AUTHZ"
 else
   record "rfc8414-as-metadata" FAIL "no authorization_endpoint (doc: ${AS_DOC:0:80})"
+fi
+
+# 1b. RFC 8414 PATH-INSERTED AS discovery. mcp-remote's DCR (registerClient)
+#     flow path-inserts the AS well-known too — a 404 here returns an EMPTY-body
+#     404 (SPA/nginx catch-all) that mcp-remote can't parse → fatal "Server
+#     disconnected" BEFORE registration. This is the DCR-404 regression a
+#     brand-new client (no cached client_id) hits even when the bare doc is 200.
+AS_SUFFIX="$(dapi GET /.well-known/oauth-authorization-server/api/jharokha/mcp/sse)"
+AS_SUFFIX_AUTHZ="$(printf '%s' "$AS_SUFFIX" | jget authorization_endpoint)"
+if [[ -n "$AS_SUFFIX_AUTHZ" ]]; then
+  record "rfc8414-as-path-inserted" PASS "authorization_endpoint=$AS_SUFFIX_AUTHZ (suffixed AS discovery resolves)"
+else
+  record "rfc8414-as-path-inserted" FAIL "404/empty — the DCR registerClient 'Server disconnected' regression (doc: ${AS_SUFFIX:0:80})"
 fi
 
 # 2. RFC 9728 — bare protected-resource doc.
@@ -157,14 +206,16 @@ echo "    # or: npx @modelcontextprotocol/inspector  (SSE, URL ${BACKEND_URL}/ap
 echo "    # log in as super-admin -> tools/list -> tools/call (list users) sees ALL rows;"
 echo "    # log in as a scoped user -> the same call sees only their rows (AGENT_CARD rbac_scope)."
 
-# Emit results JSON.
+# Emit results JSON. dict(...) not a {..} literal — same brace-expansion guard
+# as record() above (a comma-bearing brace literal in a bash `python3 -c` string
+# gets shell-brace-expanded and corrupts the program).
 python3 -c "
 import json,sys
 checks=[json.loads(x) for x in sys.argv[3:]]
-json.dump({'app':sys.argv[1],'backend':sys.argv[2],'checks':checks,
-           'pass':sum(c['verdict']=='PASS' for c in checks),
-           'fail':sum(c['verdict']=='FAIL' for c in checks)},
-          open('$RESULTS_FILE','w'), indent=2)
+out=dict(app=sys.argv[1], backend=sys.argv[2], checks=checks,
+         **{'pass':sum(c['verdict']=='PASS' for c in checks),
+            'fail':sum(c['verdict']=='FAIL' for c in checks)})
+json.dump(out, open('$RESULTS_FILE','w'), indent=2)
 " "$APP" "$BACKEND_URL" "${RESULTS[@]}"
 
 echo
