@@ -30,6 +30,15 @@
 # only the history JSON under .probe-results/).
 set -euo pipefail
 
+# REPO/CLI are pinned to the MAIN checkout BY DESIGN — not a portability miss.
+# The evolve engine discovers framework checks by FILESYSTEM PATH
+# (config.gyanam_dir/framework/lochan/packages), NOT via sys.path/PYTHONPATH, so
+# a worktree's in-flight diff CANNOT be measured for framework checks — a worktree
+# run would still execute the primary tree's check code. Therefore framework-check
+# timing is captured AT MERGE, against main. (Adding a --worktree flag would falsely
+# claim to measure a diff while running main code — worse than none.) This matches
+# the sibling probes (probe-chat-writes.sh / probe-show-users-perf.sh), which pin
+# the same REPO root. Single dev machine; the path is stable.
 REPO="/Users/srinivasnukala/Dropbox/Sites/docker/gyanam"
 CLI="framework/lochan/packages/daksh/daksh-cli"
 TARGET="${1:---all}"
