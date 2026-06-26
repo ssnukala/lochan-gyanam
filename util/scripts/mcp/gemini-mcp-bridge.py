@@ -35,9 +35,10 @@ Requirements:
 Usage:
   pip install google-genai
   export GEMINI_API_KEY=...
-  util/scripts/mcp/gemini-mcp-bridge.py <app>            # fwprod01 | longterm01
+  util/scripts/mcp/gemini-mcp-bridge.py <app>            # fwprod01 | longterm01 (one-shot default prompt)
   util/scripts/mcp/gemini-mcp-bridge.py <app> --list     # just list the bridged tools (no Gemini key needed)
-  util/scripts/mcp/gemini-mcp-bridge.py <app> --ask "which users exist?"
+  util/scripts/mcp/gemini-mcp-bridge.py <app> --ask "which users exist?"   # one-shot question
+  util/scripts/mcp/gemini-mcp-bridge.py <app> --chat     # interactive REPL chat (context carries across turns)
 
 First run opens a browser for the Lochan OAuth login (once; mcp-remote caches
 the token under ~/.mcp-auth). You log in as a real Lochan user → RBAC applies.
@@ -157,6 +158,7 @@ def main() -> int:
         return 2
     sse_url = APP_SSE[app]
     mode_list = "--list" in sys.argv
+    mode_chat = "--chat" in sys.argv
     ask = None
     if "--ask" in sys.argv:
         i = sys.argv.index("--ask")
@@ -193,33 +195,53 @@ def main() -> int:
 
         client = genai.Client()
         gemini_tools = [types.Tool(function_declarations=[mcp_tool_to_gemini(t) for t in tools])]
-        prompt = ask or "List the tools you have available and what each one does."
 
-        contents = [types.Content(role="user", parts=[types.Part(text=prompt)])]
-        # Tool-call loop: let Gemini call Lochan MCP tools until it answers.
-        for _turn in range(8):
-            resp = client.models.generate_content(
-                model="gemini-2.5-flash",
-                contents=contents,
-                config=types.GenerateContentConfig(tools=gemini_tools),
-            )
-            calls = resp.function_calls or []
-            if not calls:
-                print(resp.text or "(no text)")
-                return 0
-            contents.append(resp.candidates[0].content)
-            tool_parts = []
-            for call in calls:
-                print(f"  → Gemini calls {call.name}({dict(call.args)})", file=sys.stderr)
-                result = mcp.call_tool(call.name, dict(call.args))
-                tool_parts.append(
-                    types.Part.from_function_response(
-                        name=call.name,
-                        response={"result": _result_text(result)},
-                    )
+        def resolve(contents: list) -> str:
+            """Run one user turn to completion: let Gemini call Lochan MCP tools
+            until it produces a final text answer. Mutates `contents` (so chat
+            history accumulates) and returns the answer text."""
+            for _turn in range(8):
+                resp = client.models.generate_content(
+                    model="gemini-2.5-flash",
+                    contents=contents,
+                    config=types.GenerateContentConfig(tools=gemini_tools),
                 )
-            contents.append(types.Content(role="user", parts=tool_parts))
-        print("(stopped after 8 tool-call turns)", file=sys.stderr)
+                calls = resp.function_calls or []
+                if not calls:
+                    contents.append(resp.candidates[0].content)
+                    return resp.text or "(no text)"
+                contents.append(resp.candidates[0].content)
+                tool_parts = []
+                for call in calls:
+                    print(f"  → Gemini calls {call.name}({dict(call.args)})", file=sys.stderr)
+                    result = mcp.call_tool(call.name, dict(call.args))
+                    tool_parts.append(types.Part.from_function_response(
+                        name=call.name, response={"result": _result_text(result)}))
+                contents.append(types.Content(role="user", parts=tool_parts))
+            return "(stopped after 8 tool-call turns)"
+
+        if mode_chat:
+            # Interactive REPL — conversation context carries across turns.
+            print(f"  chat with {app} via Gemini — type a question, Ctrl-D / 'exit' to quit\n",
+                  file=sys.stderr)
+            history: list = []
+            while True:
+                try:
+                    line = input("you> ").strip()
+                except EOFError:
+                    print(file=sys.stderr)
+                    break
+                if line in ("exit", "quit", ":q"):
+                    break
+                if not line:
+                    continue
+                history.append(types.Content(role="user", parts=[types.Part(text=line)]))
+                print("gemini>", resolve(history))
+            return 0
+
+        # One-shot --ask (or the default prompt).
+        prompt = ask or "List the tools you have available and what each one does."
+        print(resolve([types.Content(role="user", parts=[types.Part(text=prompt)])]))
         return 0
     finally:
         mcp.close()
