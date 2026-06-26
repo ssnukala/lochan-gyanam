@@ -17,6 +17,24 @@
 # bridge. It's a founder self-test tool; the durable goal is each Lochan app
 # being CERTIFIED as a native connector (tracked separately).
 #
+# ╔═══════════════════════════════════════════════════════════════════════════╗
+# ║ ⚠ DATA PRIVACY — YOUR APP DATA IS SENT TO GOOGLE. THIS IS NOT LOCAL-ONLY. ║
+# ╚═══════════════════════════════════════════════════════════════════════════╝
+# When Gemini calls a Lochan tool, the TOOL RESULTS — the actual rows it queried
+# (user names, emails, records, any field it asked for) — plus your question and
+# the tool schemas are sent to Google's Gemini API so the model can answer. The
+# script runs on your machine, but it is a PIPE TO GOOGLE, not a local sandbox.
+#   • Stays local: your OAuth token / Lochan login, the database itself.
+#   • Goes to Google: the question, the 331 tool schemas, and the data Gemini
+#     requests via tool calls (the results).
+#   • RBAC still applies AT THE SOURCE: Gemini only receives data the logged-in
+#     Lochan user is allowed to see — but whatever that user can see and Gemini
+#     asks for, Google receives.
+#   • The key in apps/<app>/.env is a free Google AI-Studio key; on the free tier
+#     Google MAY USE THIS DATA TO IMPROVE ITS PRODUCTS. DO NOT point this at real
+#     customer PII on a free key. For privacy: use Vertex with a data-processing
+#     agreement, or Lochan's own chat with a self-hosted model.
+#
 # It's turnkey: creates/uses a venv, installs google-genai, sources the Gemini
 # key from the app's own .env (AI_GEMINI_API_KEY), and runs the bridge in --chat.
 #
@@ -67,4 +85,7 @@ python -c "import google.genai" 2>/dev/null || {
 }
 
 echo "── chatting with $APP via Gemini (Ctrl-D or 'exit' to quit) ──" >&2
+echo "⚠ PRIVACY: data Gemini queries from $APP (tool results — real rows/fields) is" >&2
+echo "  sent to Google's Gemini API to answer. NOT local. Free AI-Studio key may be" >&2
+echo "  used by Google to improve products — do NOT use with real customer PII." >&2
 exec python "$BRIDGE" "$APP" --chat

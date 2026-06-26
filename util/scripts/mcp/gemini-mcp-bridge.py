@@ -42,6 +42,13 @@ Usage:
 
 First run opens a browser for the Lochan OAuth login (once; mcp-remote caches
 the token under ~/.mcp-auth). You log in as a real Lochan user → RBAC applies.
+
+⚠ DATA PRIVACY — NOT LOCAL-ONLY. When Gemini calls a Lochan tool, the tool RESULTS
+(the actual rows/fields it queried) + your question + the tool schemas are sent to
+Google's Gemini API so the model can answer. RBAC gates what the logged-in user
+(hence Gemini) can access; the OAuth token stays local. A free Google AI-Studio
+key may have its data used by Google to improve products — do NOT use with real
+customer PII (use Vertex + a DPA, or Lochan's own chat with a self-hosted model).
 """
 from __future__ import annotations
 

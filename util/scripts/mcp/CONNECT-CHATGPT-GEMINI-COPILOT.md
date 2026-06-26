@@ -100,11 +100,10 @@ client.responses.create(
 )
 ```
 
-or run the same **`gemini-mcp-bridge.py` pattern ported to the OpenAI SDK** — it
-pulls Lochan's tool list over `mcp-remote` and hands them to ChatGPT as
-function-calling tools, identical shape to the Gemini bridge. (A
-`chatgpt-mcp-bridge.py` can be added on request — same 100 lines, swap the model
-client.)
+or run **`util/scripts/mcp/chatgpt-mcp-bridge.py <app>`** (already built) — its
+default path uses the Responses-API `mcp` tool above; `--local` uses the same
+`mcp-remote` function-calling pattern as the Gemini bridge. Turnkey wrapper:
+`util/scripts/gpt/connect.sh <app>` (auto-venv + `openai` + key check).
 
 > ⚠ Ignore ChatGPT's advice to *build* a FastMCP server from scratch — Lochan's
 > server already exists with 32 tools; you connect to it (Responses-API `mcp` tool
@@ -206,3 +205,32 @@ This only bites the legacy ai-plugin/OpenAPI-Action path (not the MCP-SSE path
 these desktop apps use), but it's a real staleness bug — those adapters should
 point at the canonical AS (or be retired) the same way #1534 corrected the
 discovery routes. Tracked as the multi-client adapter-hygiene follow-up.
+
+---
+
+## ⚠ DATA PRIVACY — bridges/connectors send your app data to the AI vendor
+
+Any of these paths (the Gemini/ChatGPT bridges, or a native MCP connector) makes
+the AI client a **pipe to the vendor's cloud** — it is NOT local-only:
+
+| Stays local | Goes to the vendor (Google/OpenAI/Microsoft) |
+|---|---|
+| Your OAuth token / Lochan login | Your question text |
+| The bridge process (your machine) | The tool schemas (all 331) |
+| Lochan's database itself | **Tool RESULTS — the actual rows/fields the model queried** |
+
+When a model calls e.g. `search_records(tr_users)` and gets 3 users back, **those
+user records (names, emails, fields) are sent to the vendor** so the model can
+phrase the answer. Inherent to cloud-LLM function calling — the model can't answer
+about data it never sees.
+
+**Protections that DO hold:** Lochan RBAC gates what the logged-in user (hence the
+model) can access; the OAuth token never reaches the vendor.
+
+**The caveat:** the keys in `apps/<app>/.env` are free-tier (e.g. Google AI-Studio)
+— on the free tier the vendor **may use the data to improve its products**. **Do
+NOT point a bridge at real customer PII on a free key.** For privacy-preserving
+use: a paid/Cloud tier with a data-processing agreement (Vertex for Gemini), or
+**Lochan's own chat with a self-hosted model** (data stays under your control —
+this is a core reason the framework's own chat matters). Data-residency/governance
+is a per-vendor **certification** requirement, tracked in the cert-readiness work.
