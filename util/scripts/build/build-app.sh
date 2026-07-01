@@ -5,7 +5,18 @@
 #   ./util/scripts/build/build-app.sh <app>              # build + verify
 #   ./util/scripts/build/build-app.sh <app> --no-verify  # build only
 #   ./util/scripts/build/build-app.sh <app> --with-playwright  # also build Tier-3 sidecar
+#   ./util/scripts/build/build-app.sh <app> --staging    # build the BUILT app images (domain pkg baked) via compose.staging.yml
+#   ./util/scripts/build/build-app.sh <app> --no-cache   # force a clean rebuild (no Docker layer cache) — rebakes edited domain source
 #   ./util/scripts/build/build-app.sh fwprod01           # most common — framework canonical test app
+#
+# --staging vs default:
+#   The default (dev) build serves the hot-reload compose. To deploy a LOCAL
+#   domain-schema change (e.g. a healed RBAC schema) you need the production-
+#   shaped staging surface that bakes the domain package INTO the app image —
+#   pass --staging (→ `daksh build --staging`, which selects compose.staging.yml).
+#   Pair with --no-cache to force the edited source to rebake (Docker otherwise
+#   layer-caches the COPY . /pkg/ step → stale image). Both pass straight through
+#   to `daksh build` — this wrapper does not reinvent the build, it wraps it.
 #
 # What it does:
 #   1. Sources the lochan venv (framework/lochan/.venv) so daksh-cli auto-picks the venv's python3
@@ -51,7 +62,7 @@ VENV_ACTIVATE="$FRAMEWORK_DIR/.venv/bin/activate"
 # ── Arg parsing ──
 if [[ $# -lt 1 ]]; then
   echo "ERROR: app name required" >&2
-  echo "Usage: $0 <app> [--no-verify]" >&2
+  echo "Usage: $0 <app> [--no-verify] [--with-playwright] [--staging] [--no-cache]" >&2
   echo "Example: $0 fwprod01" >&2
   exit 2
 fi
@@ -59,11 +70,16 @@ fi
 APP="$1"
 VERIFY=1
 WITH_PLAYWRIGHT=0
+# --staging / --no-cache pass straight through to `daksh build` (see header).
+STAGING=0
+NO_CACHE=0
 shift || true
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --no-verify) VERIFY=0; shift ;;
     --with-playwright) WITH_PLAYWRIGHT=1; shift ;;
+    --staging) STAGING=1; shift ;;
+    --no-cache) NO_CACHE=1; shift ;;
     *) echo "ERROR: unknown flag $1" >&2; exit 2 ;;
   esac
 done
@@ -88,12 +104,19 @@ fi
 source "$VENV_ACTIVATE"
 
 # ── Build ──
-echo "── build-app.sh: building $APP ──"
+# Assemble the daksh build flags. --staging / --no-cache are pure pass-throughs
+# to `daksh build` (they are declared there); this wrapper only forwards them so
+# a local domain-schema change can be baked + rebaked without hand-invoking the
+# venv + daksh incantation.
+BUILD_FLAGS=(--from 1)
+[[ $STAGING -eq 1 ]] && BUILD_FLAGS+=(--staging)
+[[ $NO_CACHE -eq 1 ]] && BUILD_FLAGS+=(--no-cache)
+echo "── build-app.sh: building $APP (${BUILD_FLAGS[*]}) ──"
 echo "  Tip: in another terminal, tail pretty-printed progress with:"
 echo "    bash $SCRIPT_DIR/watch-daksh-build.sh /tmp/daksh-build.log"
 echo "  (filters noise; shows tier completion + per-package installs + errors)"
 echo ""
-"$DAKSH_CLI" build --from 1 "$APP" 2>&1 | tee /tmp/daksh-build.log
+"$DAKSH_CLI" build "${BUILD_FLAGS[@]}" "$APP" 2>&1 | tee /tmp/daksh-build.log
 
 # ── Tier-3 Playwright sidecar (opt-in; Q-CAPTURE-RUN-BIND-MOUNT-LAYOUT = B) ──
 #
