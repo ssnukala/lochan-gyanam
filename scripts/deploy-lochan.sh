@@ -225,10 +225,23 @@ if (( BUILD )); then
     local file="$1" tag="$2" target="${3:-}"
     local target_args=()
     [[ -n "$target" ]] && target_args=(--target "$target")
+    # §FIX-TIER1-SECRET — 02-backend-base.Dockerfile precomputes the framework
+    # embedding artifacts (§BUILD-STAGE-PRECOMPUTE Gemini build block). Thread
+    # the API key as an env-sourced BuildKit secret; the Dockerfile mounts it
+    # required=false, so a key-less build still succeeds — but SILENTLY ships
+    # the base artifact-less (boot live-computes). Backend-base ONLY: no other
+    # dockerfile mounts gemini_key. Mirrors daksh cli_dispatch.py Tier-1 +
+    # services/deployer/_build.py.
+    local secret_args=()
+    if [[ "$file" == *02-backend-base.Dockerfile && -n "${AI_GEMINI_API_KEY:-}" ]]; then
+      secret_args=(--secret "id=gemini_key,env=AI_GEMINI_API_KEY")
+    fi
     echo -n "  build $tag ($file${target:+ --target $target}) ... "
     # ${arr[@]+"${arr[@]}"} — bash-3.2-safe expansion of a possibly-empty array
     # under set -u (a bare "${arr[@]}" errors "unbound variable" when empty).
-    if docker build --quiet ${target_args[@]+"${target_args[@]}"} -f "$file" -t "$tag" . >/dev/null; then
+    # DOCKER_BUILDKIT=1 on every build (required for the secret mount; matches
+    # services/deployer/_build.py which enables it for all image builds).
+    if DOCKER_BUILDKIT=1 docker build --quiet ${target_args[@]+"${target_args[@]}"} ${secret_args[@]+"${secret_args[@]}"} -f "$file" -t "$tag" . >/dev/null; then
       echo "ok"
     else
       err "build failed: $tag"; DEPLOY_FAILED=1; return 1
