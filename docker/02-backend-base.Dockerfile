@@ -1,4 +1,10 @@
+# syntax=docker/dockerfile:1.6
 # lochan-backend-base — Complete framework backend image (Tier 1 flywheel)
+#
+# NOTE: the syntax directive above pins the BuildKit dockerfile frontend — REQUIRED
+# for the §BUILD-STAGE-PRECOMPUTE ``RUN --mount=type=secret,...,required=false``
+# below (secret mounts + required=false are BuildKit-frontend features). Matches
+# the ``# syntax=docker/dockerfile:1.6`` the generated app Dockerfile.deps pins.
 #
 # Contains: All deps (from Tier 0) + framework packages + daksh + source code.
 # This image IS a runnable app (empty, no domain packages).
@@ -21,6 +27,48 @@ WORKDIR /build
 COPY framework/lochan/packages/daksh/backend/daksh/runtime/install-framework-packages.py /build/install-framework-packages.py
 COPY framework/lochan/packages/ /build/packages/
 RUN python3 /build/install-framework-packages.py /build/packages --install
+
+# §BUILD-STAGE-PRECOMPUTE (S3, 2026-07-01) — bake FRAMEWORK intent-embedding
+# artifacts into the base at BUILD time (layered: framework-in-base,
+# domain-in-app). The framework packages were just installed above → their
+# ``lochan.packages`` entry points are registered → precompute_embeddings.py
+# (Design A, context-derived) discovers them via those entry points and writes
+# each package's ``ai_intent_seeds_embedded.json`` into its INSTALLED
+# site-packages dir. Those artifacts ride the ``COPY --from=builder
+# site-packages`` below into the base image, so EVERY app (framework-only fwprod
+# OR a domain app) inherits the framework corpus pre-embedded → boot bulk-loads
+# in seconds instead of the ~5hr live path.
+#
+# Provider = Gemini (§PARAM-EMBEDDING #1593 build block: cloud, reachable during
+# build, no GPU). The nested embedding config is selected via env
+# (``AI_EMBEDDING__{BUILD,RUNTIME}__*`` — enabled by env_nested_delimiter in
+# AISettings). Both build+runtime blocks are set to the SAME model to satisfy
+# the #1593 same-model vector-space guard. The API key is supplied as a BuildKit
+# SECRET (id=gemini_key, sourced into this RUN's env ONLY, never baked into a
+# layer). If the secret is absent (offline build), precompute logs loud and the
+# base ships WITHOUT framework artifacts (boot degrades to live-compute) — it
+# does NOT fail the base build.
+# NOTE: the embedding config env is set INLINE in the RUN below (scoped to that
+# single build step) — deliberately NOT a Dockerfile ``ENV`` layer, which would
+# persist into the base image + every app and force runtime→Gemini, clobbering
+# the #1593 DB/admin runtime override + the ollama default. Build-block config
+# must exist only for the duration of precompute.
+ARG EMBED_BUILD_MODEL=gemini-embedding-001
+ARG EMBED_BUILD_DIM=768
+RUN --mount=type=secret,id=gemini_key,required=false \
+    AI_EMBEDDING__BUILD__PROVIDER=gemini \
+    AI_EMBEDDING__BUILD__MODEL="${EMBED_BUILD_MODEL}" \
+    AI_EMBEDDING__BUILD__DIMENSION="${EMBED_BUILD_DIM}" \
+    AI_EMBEDDING__RUNTIME__PROVIDER=gemini \
+    AI_EMBEDDING__RUNTIME__MODEL="${EMBED_BUILD_MODEL}" \
+    AI_EMBEDDING__RUNTIME__DIMENSION="${EMBED_BUILD_DIM}" \
+    sh -euc 'if [ -f /run/secrets/gemini_key ]; then AI_GEMINI_API_KEY="$(cat /run/secrets/gemini_key)"; export AI_GEMINI_API_KEY; fi; \
+      if [ -n "${AI_GEMINI_API_KEY:-}" ]; then \
+        echo "[precompute] framework embedding artifacts (Gemini build block, model=${AI_EMBEDDING__BUILD__MODEL})"; \
+        python3 -m gyanam.scripts.precompute_embeddings; \
+      else \
+        echo "[precompute] WARN: AI_GEMINI_API_KEY absent at build — skipping framework precompute; base ships WITHOUT artifacts (boot will live-compute)"; \
+      fi'
 
 # Daksh is now a regular framework package (`packages/daksh/`) with
 # `backend/pyproject.toml` — it's installed by step (1) above alongside
