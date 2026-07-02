@@ -33,7 +33,7 @@ RUN python3 /build/install-framework-packages.py /build/packages --install
 # domain-in-app). The framework packages were just installed above → their
 # ``lochan.packages`` entry points are registered → precompute_embeddings.py
 # (Design A, context-derived) discovers them via those entry points and writes
-# each package's ``ai_intent_seeds_embedded.json`` into its INSTALLED
+# each package's ``ai_intent_seeds_embedded.npz`` into its INSTALLED
 # site-packages dir. Those artifacts ride the ``COPY --from=builder
 # site-packages`` below into the base image, so EVERY app (framework-only fwprod
 # OR a domain app) inherits the framework corpus pre-embedded → boot bulk-loads
