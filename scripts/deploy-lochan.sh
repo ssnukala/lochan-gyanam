@@ -291,9 +291,22 @@ if (( DEPLOY )) && (( ${#APPS[@]} > 0 )); then
     # NOT be reported as "restarted". The original printed success
     # unconditionally after the subshell, masking a failed bring-up as exit-0.
     if (
-      cd "$app_dir"
+      # NOTE: `set -e` does NOT help here — bash disables errexit inside a
+      # subshell used as an `if` condition (POSIX), so each step must check its
+      # OWN exit with `|| exit 1` to abort the subshell → the outer `if` sees
+      # non-zero → "deploy FAILED" not "[✓] deployed".
+      cd "$app_dir" || exit 1
       export ENV_FILE="$app_env_file"
-      docker compose -f "$compose_file" up -d --force-recreate --build
+
+      # Build as its OWN step, BEFORE `up`. `docker compose up --build` can
+      # return 0 even when the image BUILD failed (docker/compose#8213 — the
+      # up-phase swallows the build exit code, worse under --force-recreate),
+      # which is how a broken prod frontend build (`pnpm run build`) printed
+      # "[✓] deployed" while zero containers came up. A standalone `build`
+      # surfaces the real exit; `|| exit 1` aborts loudly; `up` then only starts
+      # already-built images. [[tee-pipe-masks-exit-code]] — no masked exit.
+      docker compose -f "$compose_file" build || exit 1
+      docker compose -f "$compose_file" up -d --force-recreate || exit 1
 
       # Dev bring-up B1 (founder-ratified 2026-06-19): the generated
       # compose.dev.yml delivers domain/common packages via `develop.watch`
