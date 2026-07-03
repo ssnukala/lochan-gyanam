@@ -134,13 +134,37 @@ clone_or_pull() {
   local full="$GYANAM_DIR/$path"
   if [[ -d "$full/.git" ]]; then
     echo -n "  pull $path ... "
-    if git -C "$full" pull --ff-only --quiet 2>/dev/null; then
-      echo "ok"
+    # FAIL LOUD on stale source (§D.BUILD-CACHE, 2026-07-03). The old code
+    # `git pull --ff-only … || warn "leaving as-is"` silently CONTINUED on the
+    # PRE-pull commit whenever the pull couldn't fast-forward (non-ff, dirty
+    # tree, transient fetch error) — the build context then kept last-run's
+    # source, the Tier-0/Tier-1 COPY layers saw identical bytes, and the base
+    # cache-hit STALE (this is how #1621 never landed on the server: 3 deploy
+    # failures on old code until a forced no-cache rebuild). The Docker cache
+    # key was never the bug; the sync silently leaving stale source was.
+    # Fix at the source: fetch, then require the branch to advance to (or
+    # already be at) origin. If it can't, abort the deploy — never build on a
+    # tree we failed to update. (blanket --no-cache was REJECTED: it rebuilds
+    # the SAME stale source slower and still ships the old code.)
+    local before after
+    before="$(git -C "$full" rev-parse HEAD 2>/dev/null || echo none)"
+    if ! git -C "$full" fetch --quiet origin 2>/dev/null; then
+      err "$path: git fetch failed (network/remote) — deploy aborted, refusing to build on unverified source"
+      DEPLOY_FAILED=1; return 1
+    fi
+    if ! git -C "$full" merge --ff-only --quiet '@{u}' 2>/dev/null; then
+      err "$path: cannot fast-forward to origin (non-ff or dirty tree) — still at ${before:0:9}; deploy aborted, refusing to build on stale source"
+      DEPLOY_FAILED=1; return 1
+    fi
+    after="$(git -C "$full" rev-parse HEAD 2>/dev/null || echo none)"
+    if [[ "$before" == "$after" ]]; then
+      echo "ok (already at ${after:0:9})"
     else
-      warn "pull non-fast-forward or dirty — leaving as-is"
+      echo "ok (${before:0:9} → ${after:0:9})"
     fi
   elif [[ -d "$full" && -n "$(ls -A "$full" 2>/dev/null)" ]]; then
-    warn "$path exists but isn't a git repo — skipping clone"
+    err "$path exists but isn't a git repo — deploy aborted (cannot verify source is current)"
+    DEPLOY_FAILED=1; return 1
   else
     echo -n "  clone $path ... "
     mkdir -p "$(dirname "$full")"
@@ -148,7 +172,7 @@ clone_or_pull() {
       echo "ok"
     else
       err "clone failed for $url"
-      return 1
+      DEPLOY_FAILED=1; return 1
     fi
   fi
 }
@@ -158,7 +182,10 @@ pull_bucket() {
   local count=0
   while IFS=$'\t' read -r path url; do
     [[ -z "$path" ]] && continue
-    clone_or_pull "$path" "$url"
+    # `|| true` so one repo's fail-loud (DEPLOY_FAILED=1 + return 1) does not
+    # abort the loop under `set -e` — every repo is attempted, then the
+    # post-Phase-1 gate (below) aborts the run cleanly with the full picture.
+    clone_or_pull "$path" "$url" || true
     count=$((count + 1))
   done < <(repos_bucket_tsv "$bucket")
   log "$bucket: $count repo(s) synced"
@@ -216,10 +243,22 @@ if (( PULL )); then
       for dom in "${local_domains[@]}"; do
         url=$(repos_domain_url "$dom")
         [[ -z "$url" ]] && { warn "no url for $dom in repos.json"; continue; }
-        clone_or_pull "$dom" "$url"
+        clone_or_pull "$dom" "$url" || true   # see pull_bucket note; gate below
       done
       log "domain repos: ${#local_domains[@]} synced"
     fi
+  fi
+
+  # ── Post-Phase-1 gate: abort BEFORE building on stale/unverified source ────
+  # §D.BUILD-CACHE (2026-07-03). Any clone_or_pull that could not bring a repo
+  # to its origin set DEPLOY_FAILED=1. We stop HERE — before Phase 2 builds —
+  # because building on stale source is the exact incident this fixes: a base
+  # image built from last-run's code cache-hits "clean" and silently ships the
+  # OLD framework. Fail loud at the source of the staleness, not after the
+  # wasted build ([[no-silent-try-except]] / fix-at-source).
+  if (( ${DEPLOY_FAILED:-0} )); then
+    err "Phase 1 could not sync one or more repos to origin — aborting BEFORE build (refusing to build/deploy on stale source)"
+    exit 1
   fi
 else
   warn "skipping pull (--skip-pull)"
@@ -231,6 +270,19 @@ fi
 if (( BUILD )); then
   sect "Phase 2: Build framework base images"
   cd "$GYANAM_DIR"
+
+  # §D.BUILD-CACHE class-prevention (2026-07-03). SOURCE_HASH = the git TREE
+  # hash of the framework/lochan subtree (content-addressed: changes iff any
+  # tracked framework byte changes). Threaded as a --build-arg into every base
+  # build; each base Dockerfile references it in a cheap LABEL right after FROM
+  # so it participates in the layer cache key. Effect: a framework-source change
+  # forces the base chain to re-derive from that point down, even in the (rare)
+  # case a COPY-checksum bust is missed or BuildKit mis-reuses a layer. This is
+  # belt-and-suspenders ON TOP of Leg 1 (which already guarantees the source is
+  # current before we get here) — NOT a substitute for it, and NOT blanket
+  # --no-cache (which would rebuild identical current source slower for nothing).
+  SOURCE_HASH="$(git -C "$GYANAM_DIR/framework/lochan" rev-parse HEAD:. 2>/dev/null || echo unknown)"
+  log "framework source hash: ${SOURCE_HASH:0:12}"
 
   # docker_build <dockerfile> <tag> [target]
   # The optional <target> selects a specific stage of a multi-stage Dockerfile.
@@ -256,11 +308,15 @@ if (( BUILD )); then
       secret_args=(--secret "id=gemini_key,env=AI_GEMINI_API_KEY")
     fi
     echo -n "  build $tag ($file${target:+ --target $target}) ... "
+    # §D.BUILD-CACHE: pass the framework source tree-hash so a source change
+    # invalidates the base cache from the SOURCE_HASH LABEL down (each base
+    # Dockerfile declares `ARG SOURCE_HASH` + a LABEL referencing it right after
+    # FROM). Harmless when unchanged (same hash = same cache key).
     # ${arr[@]+"${arr[@]}"} — bash-3.2-safe expansion of a possibly-empty array
     # under set -u (a bare "${arr[@]}" errors "unbound variable" when empty).
     # DOCKER_BUILDKIT=1 on every build (required for the secret mount; matches
     # services/deployer/_build.py which enables it for all image builds).
-    if DOCKER_BUILDKIT=1 docker build --quiet ${target_args[@]+"${target_args[@]}"} ${secret_args[@]+"${secret_args[@]}"} -f "$file" -t "$tag" . >/dev/null; then
+    if DOCKER_BUILDKIT=1 docker build --quiet --build-arg "SOURCE_HASH=${SOURCE_HASH:-unknown}" ${target_args[@]+"${target_args[@]}"} ${secret_args[@]+"${secret_args[@]}"} -f "$file" -t "$tag" . >/dev/null; then
       echo "ok"
     else
       err "build failed: $tag"; DEPLOY_FAILED=1; return 1

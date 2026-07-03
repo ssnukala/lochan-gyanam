@@ -59,6 +59,7 @@ util/scripts/*
 !util/scripts/test-lgit.sh
 !util/scripts/test-util-scripts-strict-mode.sh
 !util/scripts/test-verify-app-domains.sh
+!util/scripts/test-deploy-sync-fail-loud.sh
 !util/scripts/sleep-mode-setup.sh
 !util/scripts/wave-runner.sh
 !util/scripts/migrate-locales-to-canonical.sh

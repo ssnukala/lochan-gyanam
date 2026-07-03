@@ -18,6 +18,13 @@
 
 FROM node:22-alpine
 
+# §D.BUILD-CACHE (2026-07-03): framework source tree-hash from deploy-lochan.sh
+# Phase 2, referenced in a LABEL so it enters the layer cache key — a framework-
+# source change re-derives from here down even if a COPY-checksum bust is missed.
+# Harmless when unchanged; default keeps standalone `docker build` working.
+ARG SOURCE_HASH=unset
+LABEL org.lochan.source_hash="${SOURCE_HASH}"
+
 RUN apk add --no-cache python3
 
 # Install pnpm 10 (matches framework/lochan/pnpm-lock.yaml format).

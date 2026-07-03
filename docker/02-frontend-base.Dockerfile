@@ -13,6 +13,13 @@
 FROM lochan-deps-frontend:latest AS dev
 WORKDIR /app
 
+# §D.BUILD-CACHE (2026-07-03): framework source tree-hash from deploy-lochan.sh
+# Phase 2, referenced in a LABEL so it enters the dev-stage cache key BEFORE the
+# framework-source COPY — a source change re-derives from here down even if the
+# COPY-checksum bust is missed. `prod` inherits `dev`; harmless when unchanged.
+ARG SOURCE_HASH=unset
+LABEL org.lochan.source_hash="${SOURCE_HASH}"
+
 # Patent + license metadata — visible via `docker inspect`.
 LABEL org.lochan.patent.filing="FP11"
 LABEL org.lochan.patent.filing_date="2026-04-19"

@@ -20,6 +20,14 @@
 # -- Stage 1: Build (has gcc for any C extensions) ---------------------
 FROM python:3.13-slim AS builder
 
+# §D.BUILD-CACHE (2026-07-03): framework source tree-hash from deploy-lochan.sh
+# Phase 2. Referenced in a LABEL so it enters this stage's layer cache key — a
+# framework-source change re-derives everything below, even if a COPY-checksum
+# bust is somehow missed. Harmless when unchanged. Default keeps standalone
+# `docker build` (no --build-arg) working.
+ARG SOURCE_HASH=unset
+LABEL org.lochan.source_hash="${SOURCE_HASH}"
+
 RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     --mount=type=cache,target=/var/lib/apt,sharing=locked \
     apt-get update && apt-get install -y --no-install-recommends \
