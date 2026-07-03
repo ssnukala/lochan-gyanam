@@ -337,7 +337,14 @@ if (( BUILD )); then
   docker_build docker/02-backend-base.Dockerfile  lochan-backend-base:latest
   # Multi-stage frontend base (dev → prod → test): build the MODE's runtime
   # stage + tag it as the app Dockerfiles expect (NOT :latest = the test stage).
-  docker_build docker/02-frontend-base.Dockerfile "lochan-frontend-base:${MODE}" "$MODE"
+  # STAGING maps to the PROD base stage+tag: staging is production-shaped (the
+  # 02-frontend-base.Dockerfile has NO `staging` target — only dev/prod/test),
+  # and the app `Dockerfile.frontend` FROMs `lochan-frontend-base:prod`. So a
+  # bare `--target staging` fails ("target stage staging could not be found")
+  # and a `:staging` tag would never be consumed. Build+tag as prod for staging.
+  base_stage="$MODE"
+  [[ "$MODE" == "staging" ]] && base_stage="prod"
+  docker_build docker/02-frontend-base.Dockerfile "lochan-frontend-base:${base_stage}" "$base_stage"
 else
   warn "skipping base image builds (--skip-build)"
 fi
