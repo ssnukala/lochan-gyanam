@@ -23,6 +23,13 @@
 FROM lochan-deps-backend:latest AS builder
 WORKDIR /build
 
+# §D.BUILD-CACHE (2026-07-03): framework source tree-hash from deploy-lochan.sh
+# Phase 2, referenced in a LABEL so it enters this stage's cache key BEFORE the
+# framework-source COPY below — a source change re-derives the packages install
+# even if the COPY-checksum bust is somehow missed. Harmless when unchanged.
+ARG SOURCE_HASH=unset
+LABEL org.lochan.source_hash="${SOURCE_HASH}"
+
 # 1. Framework packages — deps pre-installed in Tier 0, just register entry points
 COPY framework/lochan/packages/daksh/backend/daksh/runtime/install-framework-packages.py /build/install-framework-packages.py
 COPY framework/lochan/packages/ /build/packages/
