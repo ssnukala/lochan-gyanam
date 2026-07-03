@@ -8,7 +8,8 @@
 # mandi_domain repo only when an app that needs it is requested via --app.
 #
 # Usage:
-#   ./scripts/deploy-lochan.sh --prod --app fwprod01
+#   ./scripts/deploy-lochan.sh --prod    --app fwprod01
+#   ./scripts/deploy-lochan.sh --staging --app fwprod01 --app longterm01
 #   ./scripts/deploy-lochan.sh --prod --app fwprod01 --app lifestyle01 --app longterm01
 #   ./scripts/deploy-lochan.sh --dev  --app fwprod01
 #   ./scripts/deploy-lochan.sh --pull-only                # refresh all repos, no build/deploy
@@ -16,8 +17,14 @@
 #   ./scripts/deploy-lochan.sh --skip-build --app fwprod01 # restart only (images already built)
 #
 # Compose mode:
-#   --prod → docker compose -f compose.prod.yml ...   (or compose.yml if no .prod.yml)
-#   --dev  → docker compose -f compose.dev.yml ...    (default if neither flag is set)
+#   --prod    → docker compose -f compose.prod.yml ...    (or compose.yml if no .prod.yml)
+#   --staging → docker compose -f compose.staging.yml [-f compose.staging.override.yml] ...
+#               env=.env.staging. The staging surface = production-shaped app
+#               (public-origin URLs at staging.lochan.ai so OAuth issuer + MCP
+#               discovery advertise the public origin an external agent resolves).
+#               The optional compose.staging.override.yml (single-worker MCP-test
+#               stability fix) is auto-included when present.
+#   --dev     → docker compose -f compose.dev.yml ...     (default if no mode flag is set)
 #
 # The script is idempotent. Safe to re-run. Exits non-zero on any build or
 # deploy error so CI / cron can detect failures.
@@ -45,7 +52,7 @@ err()  { echo -e "${R}[✗]${N} $*" >&2; }
 sect() { echo; echo -e "${B}${C}══════════════════════════════════════════${N}"; echo -e "${B}${C}  $*${N}"; echo -e "${B}${C}══════════════════════════════════════════${N}"; }
 
 # ── Arg parsing ────────────────────────────────────────────────────────────
-MODE="dev"           # dev | prod
+MODE="dev"           # dev | staging | prod
 APPS=()              # list of apps to deploy
 PULL=1               # pull repos?
 BUILD=1              # build base images?
@@ -56,6 +63,7 @@ DEPLOY_FAILED=0      # set to 1 if any app's bring-up fails → exit 1 at the en
 while (( $# )); do
   case "$1" in
     --prod)       MODE="prod" ;;
+    --staging)    MODE="staging" ;;
     --dev)        MODE="dev"  ;;
     --app)        shift; APPS+=("$1") ;;
     --skip-pull)  PULL=0  ;;
@@ -329,7 +337,14 @@ if (( BUILD )); then
   docker_build docker/02-backend-base.Dockerfile  lochan-backend-base:latest
   # Multi-stage frontend base (dev → prod → test): build the MODE's runtime
   # stage + tag it as the app Dockerfiles expect (NOT :latest = the test stage).
-  docker_build docker/02-frontend-base.Dockerfile "lochan-frontend-base:${MODE}" "$MODE"
+  # STAGING maps to the PROD base stage+tag: staging is production-shaped (the
+  # 02-frontend-base.Dockerfile has NO `staging` target — only dev/prod/test),
+  # and the app `Dockerfile.frontend` FROMs `lochan-frontend-base:prod`. So a
+  # bare `--target staging` fails ("target stage staging could not be found")
+  # and a `:staging` tag would never be consumed. Build+tag as prod for staging.
+  base_stage="$MODE"
+  [[ "$MODE" == "staging" ]] && base_stage="prod"
+  docker_build docker/02-frontend-base.Dockerfile "lochan-frontend-base:${base_stage}" "$base_stage"
 else
   warn "skipping base image builds (--skip-build)"
 fi
@@ -345,7 +360,20 @@ if (( DEPLOY )) && (( ${#APPS[@]} > 0 )); then
     [[ -f "$app_dir/$compose_file" ]] || compose_file="compose.yml"
     [[ -f "$app_dir/$compose_file" ]] || { err "$app: no compose file (tried compose.${MODE}.yml, compose.yml)"; DEPLOY_FAILED=1; continue; }
 
-    echo "  [$app] using $compose_file"
+    # Base compose file + any mode override layered on top (staging ships a
+    # `compose.staging.override.yml` single-worker MCP-test stability fix; it is
+    # OPTIONAL and only applied when present — a missing override is fine, but a
+    # PRESENT one MUST be included or the 4-worker prod CMD reaps in a loop → 502,
+    # which is exactly the failure the override exists to prevent). Generalized as
+    # `compose.${MODE}.override.yml` so any mode can carry a local override.
+    compose_args=(-f "$compose_file")
+    override_file="compose.${MODE}.override.yml"
+    if [[ -f "$app_dir/$override_file" ]]; then
+      compose_args+=(-f "$override_file")
+      echo "  [$app] using $compose_file + $override_file"
+    else
+      echo "  [$app] using $compose_file"
+    fi
     # Prod/staging compose declares `env_file: ${ENV_FILE:-.env.prod}`, but no
     # app ships a `.env.prod` — only `.env`. Without this, compose falls back to
     # a non-existent file and the bring-up fails INSIDE the subshell. Resolve
@@ -380,8 +408,8 @@ if (( DEPLOY )) && (( ${#APPS[@]} > 0 )); then
       # "[✓] deployed" while zero containers came up. A standalone `build`
       # surfaces the real exit; `|| exit 1` aborts loudly; `up` then only starts
       # already-built images. [[tee-pipe-masks-exit-code]] — no masked exit.
-      docker compose -f "$compose_file" build || exit 1
-      docker compose -f "$compose_file" up -d --force-recreate || exit 1
+      docker compose "${compose_args[@]}" build || exit 1
+      docker compose "${compose_args[@]}" up -d --force-recreate || exit 1
 
       # Dev bring-up B1 (founder-ratified 2026-06-19): the generated
       # compose.dev.yml delivers domain/common packages via `develop.watch`
@@ -396,9 +424,9 @@ if (( DEPLOY )) && (( ${#APPS[@]} > 0 )); then
       # activate_dev_watch_with_reinstall (sister PR in ssnukala/lochan).
       if [[ "$MODE" == "dev" ]]; then
         mkdir -p log
-        docker compose -f "$compose_file" watch >log/compose-watch.log 2>&1 &
+        docker compose "${compose_args[@]}" watch >log/compose-watch.log 2>&1 &
         sleep 8   # let the initial sync land the domain/common packages
-        docker compose -f "$compose_file" restart backend \
+        docker compose "${compose_args[@]}" restart backend \
           || warn "$app: backend restart after watch sync failed — domain packages may be absent (app could boot framework-only)"
       fi
     ); then
