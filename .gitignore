@@ -58,6 +58,7 @@ util/scripts/*
 !util/scripts/lgh.sh
 !util/scripts/test-lgit.sh
 !util/scripts/test-util-scripts-strict-mode.sh
+!util/scripts/test-verify-app-domains.sh
 !util/scripts/sleep-mode-setup.sh
 !util/scripts/wave-runner.sh
 !util/scripts/migrate-locales-to-canonical.sh
