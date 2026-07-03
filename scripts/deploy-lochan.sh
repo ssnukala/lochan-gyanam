@@ -164,6 +164,25 @@ pull_bucket() {
   log "$bucket: $count repo(s) synced"
 }
 
+# ── Phase 0: verify app→domain mapping (class-prevention, 2026-07-02) ──────
+# app_to_domains drift is how the longterm01 server deploy silently skipped
+# flow/vyaparam (mapping listed only longterm). Verify the mapping against
+# each requested app's generated packages.json BEFORE doing any work and fail
+# loud on any gap — including a domain path missing from the mandi_domain
+# registry. Apps not generated yet are skipped inside the verifier (fresh
+# bootstrap: apps/ appears after the first sync + generate).
+if (( ${#APPS[@]} > 0 )); then
+  sect "Phase 0: Verify app_to_domains vs apps/<app>/packages.json"
+  verify_args=()
+  for app in "${APPS[@]}"; do verify_args+=(--app "$app"); done
+  if python3 "$SCRIPT_DIR/verify-app-domains.py" --gyanam "$GYANAM_DIR" "${verify_args[@]}"; then
+    log "app_to_domains mapping verified"
+  else
+    err "app_to_domains mapping is WRONG for a requested app — fix repos.json (app_to_domains / mandi_domain) before deploying"
+    exit 1
+  fi
+fi
+
 # ── Phase 1: repo sync ─────────────────────────────────────────────────────
 if (( PULL )); then
   sect "Phase 1: Sync framework + common repos"
