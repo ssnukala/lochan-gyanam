@@ -60,6 +60,27 @@ RUN python3 /build/install-framework-packages.py /build/packages --install
 # persist into the base image + every app and force runtime→Gemini, clobbering
 # the #1593 DB/admin runtime override + the ollama default. Build-block config
 # must exist only for the duration of precompute.
+# §PRESEED-FRAMEWORK-ARTIFACTS (2026-07-04) — pre-seed the FRAMEWORK
+# ``ai_intent_seeds_embedded.npz`` artifacts from the committed cache in
+# ``framework/lochan/data/embed-artifacts/`` INTO each installed package's
+# site-packages dir BEFORE the precompute RUN. The precompute's skip-if-present
+# (precompute_embeddings.py:101 — ``if out_file.exists(): skip``) then finds
+# them present → makes ZERO Gemini calls for framework packages → the base
+# ships WITH artifacts at NO API cost/quota. This is the frugal path: the
+# 13k-phrase framework corpus was embedded ONCE and committed to the data
+# folder; every base rebuild reuses it instead of re-embedding (which cost
+# ~10k Gemini calls + hit the 3000/min quota). If a package's artifact is
+# ABSENT from the cache (a new framework package), precompute live-embeds only
+# that one — the cache is a fast-path, never a hard gate. Same-model guard
+# (#1593) holds: the cached artifacts were embedded with the same
+# gemini-embedding-001 / dim=768 the build block below declares.
+# The ``framework/`` subdir mirrors the site-packages ``<pkg>/`` layout, so a
+# directory merge lands each ``<pkg>/ai_intent_seeds_embedded.npz`` in place.
+# ONLY framework artifacts are pre-seeded here (domain artifacts live in
+# ``embed-artifacts/domain/`` and are layered per-app in Dockerfile.backend) —
+# copying domain ones into the base would create orphan package dirs.
+COPY framework/lochan/data/embed-artifacts/framework/ /usr/local/lib/python3.13/site-packages/
+
 ARG EMBED_BUILD_MODEL=gemini-embedding-001
 ARG EMBED_BUILD_DIM=768
 RUN --mount=type=secret,id=gemini_key,required=false \
