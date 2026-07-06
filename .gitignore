@@ -63,6 +63,7 @@ util/scripts/*
 !util/scripts/sleep-mode-setup.sh
 !util/scripts/wave-runner.sh
 !util/scripts/migrate-locales-to-canonical.sh
+!util/scripts/probe-gap18-compliance-score.sh
 
 # ── Secrets — NEVER commit ───────────────────────────────────────────────
 .env
