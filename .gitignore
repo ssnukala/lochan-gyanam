@@ -60,6 +60,8 @@ util/scripts/*
 !util/scripts/test-util-scripts-strict-mode.sh
 !util/scripts/test-verify-app-domains.sh
 !util/scripts/test-deploy-sync-fail-loud.sh
+!util/scripts/test-deploy-pkg-staleness-gate.sh
+!util/scripts/probe-bi-provider.sh
 !util/scripts/sleep-mode-setup.sh
 !util/scripts/wave-runner.sh
 !util/scripts/migrate-locales-to-canonical.sh
