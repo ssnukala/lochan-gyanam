@@ -16,7 +16,11 @@
 #   ./scripts/deploy-lochan.sh --skip-pull --app fwprod01 # use current clones as-is
 #   ./scripts/deploy-lochan.sh --skip-build --app fwprod01 # restart only (images already built)
 #   ./scripts/deploy-lochan.sh --skip-pkg-builds --app longterm01 # skip Phase 2.5 bundled-pkg
-#                                                          # rebuild (images may be STALE)
+#                                                          # + deps-image staleness gate
+#                                                          # (images may be STALE)
+#   ./scripts/deploy-lochan.sh --skip-stamp --app fwprod01 # skip daksh stamp-meta (images
+#                                                          # ship WITHOUT __pkg_meta__.py;
+#                                                          # envelopes report stamped:false)
 #
 # Compose mode:
 #   --prod    → docker compose -f compose.prod.yml ...    (or compose.yml if no .prod.yml)
@@ -59,6 +63,7 @@ APPS=()              # list of apps to deploy
 PULL=1               # pull repos?
 BUILD=1              # build base images?
 PKG_BUILDS=1         # rebuild bundled per-package images (Phase 2.5 staleness gate)?
+STAMP=1              # run daksh stamp-meta --all before image builds (§8.6 build stamp)?
 DEPLOY=1             # start/restart containers?
 PULL_ONLY=0          # short-circuit after pull
 DEPLOY_FAILED=0      # set to 1 if any app's bring-up fails → exit 1 at the end
@@ -72,9 +77,14 @@ while (( $# )); do
     --skip-pull)  PULL=0  ;;
     --skip-build) BUILD=0 ;;
     --skip-pkg-builds) PKG_BUILDS=0 ;;
+    --skip-stamp) STAMP=0 ;;
     --skip-deploy)DEPLOY=0;;
     --pull-only)  PULL_ONLY=1; BUILD=0; DEPLOY=0 ;;
-    --help|-h)    sed -n '2,32p' "$0"; exit 0 ;;
+    # Pattern-bound range (not a hardcoded end line): print the title banner
+    # (2-4), then everything up to the header's CLOSING `# ====` rule — so
+    # growing the usage docs can never silently truncate --help again (it
+    # did when the block passed the old hardcoded line 32).
+    --help|-h)    sed -n '2,4p; 5,/^# =\{20\}/p' "$0"; exit 0 ;;
     *) err "Unknown flag: $1"; exit 2 ;;
   esac
   shift
@@ -228,6 +238,47 @@ pkg_src_dir() {
   return 1
 }
 
+# ── Deps-image helpers (Phase 2.5 deps-staleness extension) ─────────────────
+# §DEPS-STALENESS-GATE (2026-07-08; 4th recurrence of the stale-image trap).
+# apps/<app>/Dockerfile.backend is `FROM <app>-deps:latest`, and that deps
+# image pins a SNAPSHOT of the base it was built FROM. Phase 2 rebuilds the
+# base correctly, but nothing re-derived the deps layer when its base advanced
+# — a "successful" deploy shipped a container missing framework code the base
+# already had (2026-07-08: longterm01 without tarkan.metrics). Same doctrine
+# as §PKG-STALENESS-GATE: determinism, not detection — verify the derived
+# image sits on the CURRENT base, rebuild it when it doesn't, refuse loudly
+# when it can't be rebuilt.
+
+# The base image an app's deps layer derives FROM, read from the app's own
+# Dockerfile.deps (its first FROM line) — the Dockerfile is the source of
+# truth, never a hardcoded base name. Return 1 when the app has no deps layer.
+app_deps_base() {
+  local app="$1" df base
+  df="$GYANAM_DIR/apps/$app/Dockerfile.deps"
+  [[ -f "$df" ]] || return 1
+  base="$(sed -n -E 's/^FROM[[:space:]]+([^[:space:]]+).*/\1/p' "$df" | head -1)"
+  [[ -n "$base" ]] || return 1
+  echo "$base"
+}
+
+# layers_prefix_match <base_layers_json> <img_layers_json>
+# True (0) when the base image's RootFS.Layers JSON array is a PREFIX of the
+# derived image's — i.e. the derived image really sits on the CURRENT base.
+# Inputs are `docker image inspect -f '{{json .RootFS.Layers}}'` output
+# (compact JSON, hex digests — glob-safe). Pure string logic so the
+# regression test (util/scripts/test-deploy-deps-staleness-gate.sh) can
+# exercise it docker-free. Empty/null input fails CLOSED (treat as stale).
+layers_prefix_match() {
+  local base="$1" img="$2"
+  [[ -n "$base" && -n "$img" ]] || return 1
+  [[ "$base" != "null" && "$img" != "null" && "$base" != "[]" ]] || return 1
+  [[ "$img" == "$base" ]] && return 0
+  # Proper prefix: the derived list continues the base list after a comma.
+  # "${base%]}" strips the closing bracket; requiring "," right after it
+  # prevents a digest-boundary false match ("sha256:bb" vs "sha256:bbX").
+  [[ "$img" == "${base%]},"* ]]
+}
+
 # ── Phase 0: verify app→domain mapping (class-prevention, 2026-07-02) ──────
 # app_to_domains drift is how the longterm01 server deploy silently skipped
 # flow/vyaparam (mapping listed only longterm). Verify the mapping against
@@ -320,6 +371,36 @@ if (( BUILD )); then
   # --no-cache (which would rebuild identical current source slower for nothing).
   SOURCE_HASH="$(git -C "$GYANAM_DIR/framework/lochan" rev-parse HEAD:. 2>/dev/null || echo unknown)"
   log "framework source hash: ${SOURCE_HASH:0:12}"
+
+  # ── Stamp package provenance BEFORE any image build (§8.6 build stamp) ────
+  # Finding B (S1-P1-DEPLOY, 2026-07-08): no image path ran `daksh
+  # stamp-meta`, so no __pkg_meta__.py shipped and every metrics envelope
+  # reported build.stamped:false — the stale-image ambiguity the stamp exists
+  # to kill. Stamp HERE, before the base build and the Phase 2.5 pkg builds,
+  # so the per-package stamps ride the EXISTING copy paths into every image:
+  # the base bakes framework packages (pip install from the COPYed source),
+  # each pkg build.sh COPYs its just-synced clone, and <app>-deps inherits
+  # the base's site-packages. Reuses the canonical daksh surface (stamp_meta
+  # --all writes real per-repo git SHAs — impossible inside a docker build,
+  # where .git is dockerignored). daksh-cli is present on any host after
+  # Phase 1 (the framework clone ships it); failure REFUSES the build —
+  # silently shipping unstamped images is the bug this fixes. --skip-stamp
+  # is the loud, explicit escape hatch (symmetric with --skip-pkg-builds).
+  if (( STAMP )); then
+    DAKSH_CLI="$GYANAM_DIR/framework/lochan/packages/daksh/daksh-cli"
+    echo -n "  stamp package provenance (daksh stamp-meta --all) ... "
+    if [[ -x "$DAKSH_CLI" ]] && _stamp_out="$("$DAKSH_CLI" stamp-meta --all --gyanam-root "$GYANAM_DIR" 2>&1)"; then
+      echo "ok"
+      log "$(printf '%s\n' "$_stamp_out" | grep -m1 '^stamped ' || echo 'provenance stamped')"
+    else
+      echo "FAILED"
+      err "stamp-meta failed (or daksh-cli not runnable at $DAKSH_CLI) — refusing to build UNSTAMPED images (every metrics envelope would report build.stamped:false; pass --skip-stamp to bypass loudly)"
+      [[ -n "${_stamp_out:-}" ]] && printf '%s\n' "$_stamp_out" | tail -20 >&2
+      exit 1
+    fi
+  else
+    warn "skipping stamp-meta (--skip-stamp) — images ship WITHOUT __pkg_meta__.py; metrics envelopes will report build.stamped:false"
+  fi
 
   # docker_build <dockerfile> <tag> [target]
   # The optional <target> selects a specific stage of a multi-stage Dockerfile.
@@ -433,12 +514,67 @@ if (( BUILD )) && (( PKG_BUILDS )) && (( ${#APPS[@]} > 0 )); then
       fi
     done
   fi
+  # ── Phase 2.5b: per-app deps-image staleness gate (§DEPS-STALENESS-GATE) ──
+  # See the deps-image helpers block above for the incident. For each
+  # requested app: read the deps layer's base from its own Dockerfile.deps,
+  # verify <app>-deps:latest layer-prefix-matches the CURRENT base image, and
+  # rebuild the deps layer (build-app.sh --deps-only — it threads the Gemini
+  # BuildKit secret itself) on any mismatch or absence. Rebuild-then-verify;
+  # refuse loudly when the rebuild fails or still doesn't sit on the base.
+  for app in "${APPS[@]}"; do
+    if ! deps_base="$(app_deps_base "$app")"; then
+      log "$app: no Dockerfile.deps — no deps layer to gate"
+      continue
+    fi
+    deps_img="${app}-deps:latest"
+    if ! base_layers="$(docker image inspect "$deps_base" -f '{{json .RootFS.Layers}}' 2>/dev/null)"; then
+      err "$app: deps base image '$deps_base' not present locally — cannot tie $deps_img to a current base (build the base first, or --skip-pkg-builds to bypass loudly)"
+      DEPLOY_FAILED=1
+      continue
+    fi
+    deps_layers="$(docker image inspect "$deps_img" -f '{{json .RootFS.Layers}}' 2>/dev/null || true)"
+    if layers_prefix_match "$base_layers" "$deps_layers"; then
+      log "$app: $deps_img sits on current $deps_base (layer-prefix verified)"
+      continue
+    fi
+    if [[ -z "$deps_layers" ]]; then
+      warn "$app: $deps_img not built yet — building it now"
+    else
+      warn "$app: $deps_img was built on an OLD $deps_base (layer prefix mismatch) — rebuilding"
+    fi
+    if [[ ! -f "$GYANAM_DIR/apps/$app/build-app.sh" ]]; then
+      err "$app: no apps/$app/build-app.sh to rebuild the deps layer with — refusing to deploy on a stale $deps_img"
+      DEPLOY_FAILED=1
+      continue
+    fi
+    echo -n "  rebuild $deps_img (apps/$app/build-app.sh --deps-only) ... "
+    if _deps_out="$(cd "$GYANAM_DIR/apps/$app" && bash build-app.sh --deps-only 2>&1)"; then
+      echo "ok"
+    else
+      echo "FAILED"
+      err "$app: deps layer rebuild failed — refusing to deploy on a stale/unbuildable $deps_img"
+      printf '%s\n' "$_deps_out" | tail -20 >&2
+      DEPLOY_FAILED=1
+      continue
+    fi
+    # Verify-after: the rebuilt image MUST now sit on the current base — if it
+    # doesn't, Dockerfile.deps FROMs something other than what we compared
+    # against, and deploying would re-ship the exact staleness this gate kills.
+    deps_layers="$(docker image inspect "$deps_img" -f '{{json .RootFS.Layers}}' 2>/dev/null || true)"
+    if layers_prefix_match "$base_layers" "$deps_layers"; then
+      log "$app: $deps_img rebuilt on current $deps_base (verified)"
+    else
+      err "$app: $deps_img STILL not on $deps_base after rebuild — Dockerfile.deps FROM drift? Refusing to deploy"
+      DEPLOY_FAILED=1
+    fi
+  done
+
   if (( ${DEPLOY_FAILED:-0} )); then
-    err "Phase 2.5 could not rebuild one or more bundled package images — aborting BEFORE deploy"
+    err "Phase 2.5 could not produce current bundled package / deps images — aborting BEFORE deploy"
     exit 1
   fi
 elif (( ${#APPS[@]} > 0 )) && (( ! PKG_BUILDS || ! BUILD )); then
-  warn "skipping bundled package image rebuild ($( (( PKG_BUILDS )) && echo --skip-build || echo --skip-pkg-builds )) — bundled <pkg>:latest images may be STALE vs the synced source"
+  warn "skipping bundled package image rebuild + deps staleness gate ($( (( PKG_BUILDS )) && echo --skip-build || echo --skip-pkg-builds )) — bundled <pkg>:latest and <app>-deps:latest images may be STALE vs the synced source"
 fi
 
 # ── Phase 3: deploy apps ───────────────────────────────────────────────────
