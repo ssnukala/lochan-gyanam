@@ -15,6 +15,8 @@
 #   ./scripts/deploy-lochan.sh --pull-only                # refresh all repos, no build/deploy
 #   ./scripts/deploy-lochan.sh --skip-pull --app fwprod01 # use current clones as-is
 #   ./scripts/deploy-lochan.sh --skip-build --app fwprod01 # restart only (images already built)
+#   ./scripts/deploy-lochan.sh --skip-pkg-builds --app longterm01 # skip Phase 2.5 bundled-pkg
+#                                                          # rebuild (images may be STALE)
 #
 # Compose mode:
 #   --prod    → docker compose -f compose.prod.yml ...    (or compose.yml if no .prod.yml)
@@ -56,6 +58,7 @@ MODE="dev"           # dev | staging | prod
 APPS=()              # list of apps to deploy
 PULL=1               # pull repos?
 BUILD=1              # build base images?
+PKG_BUILDS=1         # rebuild bundled per-package images (Phase 2.5 staleness gate)?
 DEPLOY=1             # start/restart containers?
 PULL_ONLY=0          # short-circuit after pull
 DEPLOY_FAILED=0      # set to 1 if any app's bring-up fails → exit 1 at the end
@@ -68,9 +71,10 @@ while (( $# )); do
     --app)        shift; APPS+=("$1") ;;
     --skip-pull)  PULL=0  ;;
     --skip-build) BUILD=0 ;;
+    --skip-pkg-builds) PKG_BUILDS=0 ;;
     --skip-deploy)DEPLOY=0;;
     --pull-only)  PULL_ONLY=1; BUILD=0; DEPLOY=0 ;;
-    --help|-h)    sed -n '2,30p' "$0"; exit 0 ;;
+    --help|-h)    sed -n '2,32p' "$0"; exit 0 ;;
     *) err "Unknown flag: $1"; exit 2 ;;
   esac
   shift
@@ -197,6 +201,31 @@ pull_bucket() {
     count=$((count + 1))
   done < <(repos_bucket_tsv "$bucket")
   log "$bucket: $count repo(s) synced"
+}
+
+# ── Bundled-package helpers (Phase 2.5) ─────────────────────────────────────
+# List the package images an app bundles: every `FROM <img>:latest AS pkg-*`
+# stage in its backend/frontend Dockerfiles (the bundled-package convention —
+# apps/<app>/Dockerfile.backend COPYs each stage into /app/packages/<pkg>/).
+app_bundled_pkgs() {
+  local app="$1" df
+  for df in "$GYANAM_DIR/apps/$app/Dockerfile.backend" "$GYANAM_DIR/apps/$app/Dockerfile.frontend"; do
+    [[ -f "$df" ]] || continue
+    sed -n -E 's/^FROM[[:space:]]+([A-Za-z0-9._-]+):latest[[:space:]]+AS[[:space:]]+pkg-.*/\1/p' "$df"
+  done | sort -u
+}
+
+# Resolve a bundled package name to its source clone (the dir its build.sh
+# builds from). Same search order as daksh's PackageResolver.
+pkg_src_dir() {
+  local pkg="$1" base
+  for base in mandi/domain mandi/common framework/lochan/packages; do
+    if [[ -f "$GYANAM_DIR/$base/$pkg/build.sh" ]]; then
+      echo "$GYANAM_DIR/$base/$pkg"
+      return 0
+    fi
+  done
+  return 1
 }
 
 # ── Phase 0: verify app→domain mapping (class-prevention, 2026-07-02) ──────
@@ -347,6 +376,69 @@ if (( BUILD )); then
   docker_build docker/02-frontend-base.Dockerfile "lochan-frontend-base:${base_stage}" "$base_stage"
 else
   warn "skipping base image builds (--skip-build)"
+fi
+
+# ── Phase 2.5: rebuild bundled package images (staleness gate) ──────────────
+# §PKG-STALENESS-GATE (2026-07-07; third recurrence of the stale-pkg-image
+# trap). Phase 2 rebuilds ONLY the deps/base images; each app's Dockerfiles
+# then do `FROM <pkg>:latest AS pkg-<name>` + COPY — so a `<pkg>:latest` built
+# before a fix landed silently bakes the OLD package into a "successful"
+# deploy (2026-07-04 BaseService wave: backend crash-loop from a dead import;
+# 2026-07-07: longterm:latest still bundled pre-GAP-17 source even though its
+# CreatedAt was 16 min AFTER the fix commit — the image was built before the
+# clone was pulled, so timestamp comparison is provably unreliable for
+# staleness). Fix = determinism, not detection: ALWAYS rebuild each requested
+# app's bundled package images from the just-synced clones (Phase 1 already
+# guarantees clone == origin, fail-loud). Docker's layer cache makes the
+# unchanged case a cache-hit no-op, so the guarantee costs seconds — same
+# doctrine as Phase 2's SOURCE_HASH: never deploy an image you can't tie to
+# current source. Runs the package's own build.sh, exactly what daksh
+# build-pkg does (services/deployer/_build.py::build_package) — inlined so a
+# fresh bootstrap host needs no daksh venv. `--skip-pkg-builds` is the loud,
+# explicit escape hatch (symmetric with --skip-build; skipping prints a STALE
+# warning). Skipped under --skip-build too: that flag means "restart only,
+# images already built".
+if (( BUILD )) && (( PKG_BUILDS )) && (( ${#APPS[@]} > 0 )); then
+  sect "Phase 2.5: Rebuild bundled package images (staleness gate)"
+  pkg_list=()
+  for app in "${APPS[@]}"; do
+    while IFS= read -r _p; do [[ -n "$_p" ]] && pkg_list+=("$_p"); done < <(app_bundled_pkgs "$app")
+  done
+  # dedupe (bash-3.2-compatible; guard empty expansion under set -u)
+  if (( ${#pkg_list[@]} > 0 )); then
+    _deduped=()
+    while IFS= read -r _line; do _deduped+=("$_line"); done \
+      < <(printf "%s\n" "${pkg_list[@]}" | sort -u)
+    pkg_list=("${_deduped[@]}")
+  fi
+  if (( ${#pkg_list[@]} == 0 )); then
+    log "no bundled package images referenced by requested apps (framework-only)"
+  else
+    for pkg in "${pkg_list[@]}"; do
+      if ! src_dir="$(pkg_src_dir "$pkg")"; then
+        err "$pkg: bundled by a requested app but no source clone with build.sh found (searched mandi/domain, mandi/common, framework/lochan/packages) — cannot tie ${pkg}:latest to current source"
+        DEPLOY_FAILED=1
+        continue   # attempt every package, then abort with the full picture
+      fi
+      echo -n "  build ${pkg}:latest (from ${src_dir#"$GYANAM_DIR"/}) ... "
+      # Capture output; print it only on failure (fail loud with evidence,
+      # quiet on the common cache-hit success path).
+      if _build_out="$(cd "$src_dir" && bash build.sh latest 2>&1)"; then
+        echo "ok"
+      else
+        echo "FAILED"
+        err "$pkg: package image build failed — refusing to deploy on a stale/unbuildable package image"
+        printf '%s\n' "$_build_out" | tail -20 >&2
+        DEPLOY_FAILED=1
+      fi
+    done
+  fi
+  if (( ${DEPLOY_FAILED:-0} )); then
+    err "Phase 2.5 could not rebuild one or more bundled package images — aborting BEFORE deploy"
+    exit 1
+  fi
+elif (( ${#APPS[@]} > 0 )) && (( ! PKG_BUILDS || ! BUILD )); then
+  warn "skipping bundled package image rebuild ($( (( PKG_BUILDS )) && echo --skip-build || echo --skip-pkg-builds )) — bundled <pkg>:latest images may be STALE vs the synced source"
 fi
 
 # ── Phase 3: deploy apps ───────────────────────────────────────────────────
