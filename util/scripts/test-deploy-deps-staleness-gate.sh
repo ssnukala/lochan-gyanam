@@ -110,7 +110,7 @@ for pair in '[]|["sha256:aa"]' '|["sha256:aa"]' "$BASE|" "$BASE|null" 'null|null
 done
 
 # ── 6. wiring pins in the deploy script ──────────────────────────────────────
-stamp_line="$(grep -n 'stamp-meta --all' "$DEPLOY" | head -1 | cut -d: -f1)"
+stamp_line="$(grep -n 'stamp-meta --all --gyanam-root' "$DEPLOY" | head -1 | cut -d: -f1)"
 first_build_line="$(grep -n 'docker_build docker/01-backend-deps' "$DEPLOY" | head -1 | cut -d: -f1)"
 if [[ -n "$stamp_line" && -n "$first_build_line" ]] && (( stamp_line < first_build_line )); then
   ok "stamp-meta --all runs BEFORE the first base image build (line $stamp_line < $first_build_line)"
