@@ -20,6 +20,7 @@
   ],
   "mandi_common": [
     { "path": "mandi/common/ankana",   "url": "https://github.com/ssnukala/lochan-ankana.git" },
+    { "path": "mandi/common/arthik",   "url": "https://github.com/ssnukala/lochan-arthik.git" },
     { "path": "mandi/common/chintan",  "url": "https://github.com/ssnukala/lochan-chintan.git" },
     { "path": "mandi/common/dravya",   "url": "https://github.com/ssnukala/lochan-dravya.git" },
     { "path": "mandi/common/guna",     "url": "https://github.com/ssnukala/lochan-guna.git" },
