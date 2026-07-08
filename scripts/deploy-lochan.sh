@@ -369,7 +369,12 @@ if (( BUILD )); then
   # belt-and-suspenders ON TOP of Leg 1 (which already guarantees the source is
   # current before we get here) — NOT a substitute for it, and NOT blanket
   # --no-cache (which would rebuild identical current source slower for nothing).
-  SOURCE_HASH="$(git -C "$GYANAM_DIR/framework/lochan" rev-parse HEAD:. 2>/dev/null || echo unknown)"
+  # `HEAD^{tree}` is the canonical root-tree form. The previous `HEAD:.`
+  # is REJECTED by newer git (exit 128) while still echoing the literal to
+  # stdout — so SOURCE_HASH was silently the constant "HEAD:.\nunknown"
+  # and this whole leg was inert (found live 2026-07-08; regression test:
+  # util/scripts/test-deploy-source-hash.sh).
+  SOURCE_HASH="$(git -C "$GYANAM_DIR/framework/lochan" rev-parse 'HEAD^{tree}' 2>/dev/null || echo unknown)"
   log "framework source hash: ${SOURCE_HASH:0:12}"
 
   # ── Stamp package provenance BEFORE any image build (§8.6 build stamp) ────
