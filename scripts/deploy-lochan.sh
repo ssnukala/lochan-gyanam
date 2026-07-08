@@ -80,7 +80,11 @@ while (( $# )); do
     --skip-stamp) STAMP=0 ;;
     --skip-deploy)DEPLOY=0;;
     --pull-only)  PULL_ONLY=1; BUILD=0; DEPLOY=0 ;;
-    --help|-h)    sed -n '2,32p' "$0"; exit 0 ;;
+    # Pattern-bound range (not a hardcoded end line): print the title banner
+    # (2-4), then everything up to the header's CLOSING `# ====` rule — so
+    # growing the usage docs can never silently truncate --help again (it
+    # did when the block passed the old hardcoded line 32).
+    --help|-h)    sed -n '2,4p; 5,/^# =\{20\}/p' "$0"; exit 0 ;;
     *) err "Unknown flag: $1"; exit 2 ;;
   esac
   shift
