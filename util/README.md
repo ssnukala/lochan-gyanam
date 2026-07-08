@@ -68,14 +68,14 @@ The 4 new common capability agents (Wave 1 of agentic decomposition):
 |-------|----------|----------|----------------|
 | **Sauda** (Sales Pipeline) | सौदा | `mandi/common/sauda` | `daksh evolve sauda --strict` |
 | **Seva** (Service Ops) | सेवा | `mandi/common/seva` | `daksh evolve seva --strict` |
-| **Sulka** (Billing) | शुल्क | `mandi/common/sulka` | `daksh evolve sulka --strict` |
+| **Arthik** (Finance/GL + AR) | आर्थिक | `mandi/common/arthik` | `daksh evolve arthik --strict` |
 | **Prapti** (Commission) | प्राप्ति | `mandi/common/prapti` | `daksh evolve prapti --strict` |
 
 ### Validate all 4 agents:
 ```bash
 daksh evolve sauda --strict
 daksh evolve seva --strict
-daksh evolve sulka --strict
+daksh evolve arthik --strict
 daksh evolve prapti --strict
 ```
 
@@ -83,7 +83,7 @@ daksh evolve prapti --strict
 ```bash
 daksh janch sauda
 daksh janch seva
-daksh janch sulka
+daksh janch arthik
 daksh janch prapti
 ```
 
@@ -97,7 +97,7 @@ daksh janch prapti
 ### Deploy an app with new agents:
 ```bash
 # Add to app's packages.json:
-# "sauda": "latest", "seva": "latest", "sulka": "latest"
+# "sauda": "latest", "seva": "latest", "arthik": "latest"
 
 # Then rebuild:
 daksh rebuild --from 1 pestpro01
