@@ -69,14 +69,12 @@ The 4 new common capability agents (Wave 1 of agentic decomposition):
 | **Sauda** (Sales Pipeline) | सौदा | `mandi/common/sauda` | `daksh evolve sauda --strict` |
 | **Seva** (Service Ops) | सेवा | `mandi/common/seva` | `daksh evolve seva --strict` |
 | **Arthik** (Finance/GL + AR) | आर्थिक | `mandi/common/arthik` | `daksh evolve arthik --strict` |
-| **Prapti** (Commission) | प्राप्ति | `mandi/common/prapti` | `daksh evolve prapti --strict` |
 
 ### Validate all 4 agents:
 ```bash
 daksh evolve sauda --strict
 daksh evolve seva --strict
 daksh evolve arthik --strict
-daksh evolve prapti --strict
 ```
 
 ### Run janch checks:
@@ -84,7 +82,6 @@ daksh evolve prapti --strict
 daksh janch sauda
 daksh janch seva
 daksh janch arthik
-daksh janch prapti
 ```
 
 ### New checks added this session:

@@ -28,7 +28,6 @@
     { "path": "mandi/common/koshagar", "url": "https://github.com/ssnukala/lochan-koshagar.git" },
     { "path": "mandi/common/lekh",     "url": "https://github.com/ssnukala/lochan-lekh.git" },
     { "path": "mandi/common/nishchay", "url": "https://github.com/ssnukala/lochan-nishchay.git" },
-    { "path": "mandi/common/prapti",   "url": "https://github.com/ssnukala/lochan-prapti.git" },
     { "path": "mandi/common/sauda",    "url": "https://github.com/ssnukala/lochan-sauda.git" },
     { "path": "mandi/common/seva",     "url": "https://github.com/ssnukala/lochan-seva.git" },
     { "path": "mandi/common/shodh",    "url": "https://github.com/ssnukala/lochan-shodh.git" },

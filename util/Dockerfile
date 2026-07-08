@@ -74,7 +74,7 @@ RUN echo 'alias wrap="python3 -m vardhan.cli wrap"' >> /root/.bashrc && \
     echo 'alias diamond="python3 util/generate-diamond-report.py"' >> /root/.bashrc && \
     echo 'echo "=== Lochan Dev Container ==="' >> /root/.bashrc && \
     echo 'echo "Commands: daksh, janch, evolve, wrap, scan, diamond"' >> /root/.bashrc && \
-    echo 'echo "Agent packages: sauda (sales), seva (service), arthik (finance), prapti (commission)"' >> /root/.bashrc && \
+    echo 'echo "Agent packages: sauda (sales), seva (service), arthik (finance incl. commissions)"' >> /root/.bashrc && \
     echo 'echo "Example:  daksh evolve sauda --strict"' >> /root/.bashrc && \
     echo 'echo "Example:  daksh scaffold myapp --orchestrator"' >> /root/.bashrc && \
     echo 'echo ""' >> /root/.bashrc
