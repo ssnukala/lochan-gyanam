@@ -74,13 +74,23 @@ echo "── Governed-metric gate: $APP ──"
 # _rpc <tool-name> <arguments-json> — one deterministic sync tool call.
 _rpc() {
   local name="$1" args="$2"
-  "$DAKSH" api "$APP" POST /mcp/rpc \
+  "$DAKSH" api "$APP" POST /api/jharokha/mcp/rpc \
     "$(printf '{"name":"%s","arguments":%s}' "$name" "$args")" \
-    --format json "${as_args[@]}" 2>&1
+    --format json ${as_args[@]+"${as_args[@]}"} 2>&1
 }
 
-# _envelope <rpc-response> — extract the inner tool envelope (data/meta/summary).
-_envelope() { printf '%s' "$1" | jq -r '.content[0].text // empty' 2>/dev/null; }
+# _envelope <rpc-response> — unwrap to the tool's `result` object (metrics/summary/meta).
+# Three nested wrappers: (1) `daksh api --format json` wraps the HTTP body as the
+# OBJECT `.data.response`; (2) MCP call_tool wraps the payload as `.content[0].text`
+# (a JSON STRING → fromjson); (3) the tarkan tool nests its envelope at
+# `.data.data.result`. Peel all three; hand back the result (.metrics/.summary/.meta).
+_envelope() {
+  printf '%s' "$1" | jq -c '
+    (.data.response // .) as $body
+    | ($body.content[0].text // empty) | fromjson
+    | (.data.data.result // .data.result // .result // .)
+  ' 2>/dev/null
+}
 
 # Discover the app's domains from packages.json (primary + siblings) — no
 # hand-config; the bundle already declares them.
@@ -88,7 +98,12 @@ if [[ ! -f "$PKG_JSON" ]]; then
   echo "  ✗ $PKG_JSON not found — cannot resolve the app's domains" >&2
   exit 1
 fi
-mapfile -t DOMAINS < <(jq -r '([.primary] + (.packages | keys)) | unique | .[]' "$PKG_JSON" 2>/dev/null)
+# `while read` not `mapfile` — mapfile is bash 4+; macOS ships bash 3.2 and the
+# gate must run on the deploy host's default shell.
+DOMAINS=()
+while IFS= read -r _d; do
+  [[ -n "$_d" ]] && DOMAINS+=("$_d")
+done < <(jq -r '([.primary] + (.packages | keys)) | unique | .[]' "$PKG_JSON" 2>/dev/null)
 [[ ${#DOMAINS[@]} -gt 0 ]] || { echo "  ✗ no domains in $PKG_JSON" >&2; exit 1; }
 
 # Collect deploy_gate metrics across the app's domains (via describe_metrics).
