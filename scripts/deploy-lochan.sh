@@ -676,6 +676,45 @@ if (( DEPLOY )) && (( ${#APPS[@]} > 0 )); then
     err "one or more apps failed to deploy"
     exit 1
   fi
+
+  # ── Phase 3b: governed-metric acceptance gate (iter-8 P0 class-prevention) ──
+  # A governed metric query MUST execute cleanly against the freshly-deployed
+  # app before we call the deploy green. Iteration-8 shipped a live
+  # tk_metric_query crash that passed CI (unit tests injected the test-seam), so
+  # NOTHING ran a real governed query pre-deploy. This gate closes that class:
+  # it hits the synchronous MCP tool-call door (Q-S1-08 = A) and asserts a
+  # numeric summary.value + (stale-image check) the deployed image's build-stamp
+  # source_commit == the SHA we just built from. Same fail-loud contract as the
+  # Phase-1 post-sync + Phase-2.5 staleness gates: a RED here → DEPLOY_FAILED=1.
+  #
+  # Opt-in is DECLARATIVE + AUTOWIRED (founder-ruled 2026-07-10): a metric
+  # self-declares `@metric(..., deploy_gate=True)`. The gate script DISCOVERS the
+  # gate-flagged metrics off the LIVE registry (via describe_metrics over the
+  # app's domains) — NO per-app .env/manifest hand-config, no drift. An app with
+  # zero deploy_gate metrics is a clean no-op (the script reports "none", exit 0).
+  GATE_SCRIPT="$GYANAM_DIR/util/scripts/build/verify-governed-metric-gate.sh"
+  EXPECTED_SHA="$(git -C "$GYANAM_DIR/framework/lochan" rev-parse HEAD 2>/dev/null || echo '')"
+  if [[ -x "$GATE_SCRIPT" ]]; then
+    sect "Phase 3b: Governed-metric acceptance gate"
+    for app in "${APPS[@]}"; do
+      # The script discovers deploy_gate metrics for the app + probes each; it
+      # exits 0 when an app has none (clean no-op) or all pass, non-zero on any
+      # failure or a stale image.
+      sha_arg=(); [[ -n "$EXPECTED_SHA" ]] && sha_arg=(--expected-sha "$EXPECTED_SHA")
+      if GYANAM_DIR="$GYANAM_DIR" "$GATE_SCRIPT" "$app" "${sha_arg[@]}"; then
+        log "$app: governed-metric gate GREEN"
+      else
+        err "$app: governed-metric gate FAILED — a deploy_gate metric cannot serve a governed query (iter-8 P0 class) or the image is stale"
+        DEPLOY_FAILED=1
+      fi
+    done
+    if (( ${DEPLOY_FAILED:-0} )); then
+      err "governed-metric gate failed for one or more apps — refusing to call this deploy green"
+      exit 1
+    fi
+  else
+    warn "governed-metric gate script not found at $GATE_SCRIPT — skipping Phase 3b (the iter-8 P0 class is NOT gated this run)"
+  fi
 elif (( ${#APPS[@]} == 0 )); then
   warn "no apps requested — use --app <name> to deploy one or more"
 fi
