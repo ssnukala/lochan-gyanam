@@ -9,6 +9,21 @@ extpackages/
 patents/
 util/
 
+# Git worktrees — full repo clones (gyanam-root + nested framework); ~4.6GB,
+# never COPY'd by any Dockerfile. Git-ignored but NOT previously docker-ignored,
+# so they were shipped to the daemon on every build (context bloat).
+.worktrees/
+**/.worktrees/
+
+# indriya runtime model weights — Ollama/coder/media-inference model blobs
+# (~20GB: ollama36/models 14GB + coder/models 5.5GB + media-inference/models).
+# Git-ignored runtime artifacts pulled by indriya's pull-ollama-models.sh; NO
+# Dockerfile COPYs them. Excluding indriya cuts the gyanam-root build context
+# from ~25GB to <1GB (the 16GB+ context-transfer this was added to fix).
+# NOTE: scope to indriya's model dirs ONLY — a global `**/models/` would wrongly
+# drop backend SQLAlchemy source at `<pkg>/backend/<pkg>/auto_wire/models/`.
+mandi/common/indriya/*/models/
+
 # Git
 .git/
 .github/
