@@ -327,8 +327,17 @@ run_sidecar() {
 
 SIDECAR_OUT=""
 case "$MODE" in
-  desktop|render-check)
+  desktop)
     SIDECAR_OUT="$(run_sidecar playwright-screenshots)"
+    ;;
+  render-check)
+    # Q-S2-04=A (2026-07-11): render-check runs the CONTENT-ASSERTION sidecar
+    # (the render-check Playwright project), NOT the screenshot capture. Its
+    # truth-source is the JSON verdict the spec writes (checked below), not a
+    # PNG byte heuristic — a >=30 KB styled error-banner / blank-DOM shell
+    # PASSED the old byte gate (the v2 opencats30 dead-shell). fix-at-source:
+    # assert the property (did it render) at the gate that owns the concern.
+    SIDECAR_OUT="$(run_sidecar render-check)"
     ;;
   mobile)
     SIDECAR_OUT="$(run_sidecar playwright-screenshots-mobile)"
@@ -348,6 +357,50 @@ if printf '%s\n' "$SIDECAR_OUT" | grep -qiE 'console\.error|uncaught|pageerror|p
 fi
 pass "sidecar invocation complete (validating outputs)"
 echo ""
+
+# ─────────────────────────────────────────────────────────────────────
+# RENDER-CHECK CONTENT VERDICT (Q-S2-04=A) — the authoritative pass/fail
+# for render-check mode. Reads the JSON verdict the render-check spec wrote
+# ({app,checked,failures:[{url,name,reason}]}); a non-empty failures list
+# means a route did NOT render real content (pageerror / placeholder title /
+# blank DOM / unwired lifecycle UI). This REPLACES the byte heuristic as the
+# gate — byte-size is not even measured here (render-check produces a verdict,
+# not the demo PNG set). fix-at-source: assert the property, not a PNG proxy.
+# ─────────────────────────────────────────────────────────────────────
+if [[ "$MODE" == "render-check" ]]; then
+  echo "[content] Render-check content verdict"
+  VERDICT_FILE="$SCREENSHOT_DIR/render_check_result.json"
+  if [[ ! -f "$VERDICT_FILE" ]]; then
+    fail "render-check produced no verdict ($VERDICT_FILE absent) — the spec did not complete"
+  else
+    # Parse with python3 (present in the build env; jq is not guaranteed).
+    RC_CHECKED="$(python3 -c 'import json,sys;print(json.load(open(sys.argv[1])).get("checked",0))' "$VERDICT_FILE" 2>/dev/null || echo 0)"
+    RC_FAILN="$(python3 -c 'import json,sys;print(len(json.load(open(sys.argv[1])).get("failures",[])))' "$VERDICT_FILE" 2>/dev/null || echo -1)"
+    if [[ "$RC_FAILN" == "-1" ]]; then
+      fail "render-check verdict malformed at $VERDICT_FILE"
+    elif [[ "$RC_FAILN" == "0" ]]; then
+      pass "content check: all $RC_CHECKED route(s) mounted with real content"
+    else
+      fail "content check: $RC_FAILN/$RC_CHECKED route(s) did not render real content (dead shell / pageerror / blank DOM / unwired lifecycle UI)"
+      python3 -c 'import json,sys
+v=json.load(open(sys.argv[1]))
+for f in v.get("failures",[])[:12]: print("  "+str(f.get("name") or f.get("url"))+": "+str(f.get("reason")))' "$VERDICT_FILE" 2>/dev/null | while IFS= read -r l; do note "$l"; done
+    fi
+  fi
+  echo ""
+  # Skip the PNG-based checks 5/6 entirely — render-check mode does not produce
+  # the demo screenshot set; the content verdict above is the whole gate.
+  # (Byte-size validation is a screenshot-artifact concern, not this gate.)
+  echo "────────────────────────────────────────────────────────"
+  if [[ ${#FAILURES[@]} -eq 0 ]]; then
+    printf '\033[32m✓ take-screenshots.sh: %s PASSED — render-check content validation green (%s route(s) rendered real content)\033[0m\n' "$APP" "$RC_CHECKED"
+    exit 0
+  else
+    printf '\033[31m✗ take-screenshots.sh: %s FAILED — render-check content validation:\033[0m\n' "$APP"
+    for f in "${FAILURES[@]}"; do printf '    \033[31m- %s\033[0m\n' "$f"; done
+    exit 1
+  fi
+fi
 
 # ─────────────────────────────────────────────────────────────────────
 # CHECK 5 — STRICT screenshot validation (count + size + dimensions)
