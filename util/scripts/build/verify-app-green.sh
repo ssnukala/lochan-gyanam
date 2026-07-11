@@ -241,12 +241,16 @@ else
       fail "take-screenshots.sh missing or not executable at $TAKE_SCREENSHOTS_SH"
       note "Gate 5 strict visual validation requires take-screenshots.sh (predecessor #39 followup)"
     else
+      # Q-S2-04=A (2026-07-11): --render-check now asserts CONTENT (every route
+      # mounts with real content — no pageerror / placeholder title / blank DOM /
+      # unwired lifecycle UI), reading the render-check spec's JSON verdict. This
+      # replaced the byte-size PNG heuristic that passed dead shells (v2 opencats30).
       RENDER_OUT="$("$TAKE_SCREENSHOTS_SH" "$APP" --render-check 2>&1)"
       RENDER_RC=$?
       if [[ $RENDER_RC -eq 0 ]]; then
-        pass "strict visual validation clean (take-screenshots.sh --render-check)"
+        pass "render content validation clean (take-screenshots.sh --render-check)"
       else
-        fail "strict visual validation FAILED — sidecar didn't show actual Lochan screens"
+        fail "render content validation FAILED — a route did not render real content (dead shell / pageerror / blank DOM)"
         # Surface the per-check report from take-screenshots.sh for triage
         printf '%s\n' "$RENDER_OUT" | tail -16 | while IFS= read -r l; do note "$l"; done
       fi

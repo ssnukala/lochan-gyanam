@@ -139,6 +139,28 @@ services:
         ls -la /screenshots/ | head -20
       "
 
+  # Build-4 render gate (Q-S2-04=A): content-assertion render check. Reuses the
+  # screenshots sidecar image/network/storageState mount; runs the render-check
+  # Playwright PROJECT which writes render_check_result.json into the /screenshots
+  # bind-mount. `|| true` keeps the sidecar from erroring out before the verdict
+  # is written — the spec ALWAYS writes the JSON before its expect(); the daksh
+  # `render-check` service reads that verdict as the authoritative pass/fail (the
+  # sidecar exit code is unreliable, same as the screenshot path). RENDER_CHECK_DIR
+  # defaults to /screenshots (the writable mount) via the config metadata.
+  render-check:
+    extends:
+      service: playwright-screenshots
+    environment:
+      - RENDER_CHECK_DIR=/screenshots
+    command: >
+      sh -c "
+        echo '[playwright-sidecar] Render-check content assertion starting...';
+        echo '[playwright-sidecar] BASE_URL = '$$BASE_URL;
+        npx playwright test --project=render-check --config=/tests/playwright.config.ts || true;
+        echo '[playwright-sidecar] Render-check complete. Verdict at /screenshots/render_check_result.json.';
+        cat /screenshots/render_check_result.json 2>/dev/null | head -40
+      "
+
 networks:
   # External network reference — created by the parent app's compose.yml.
   # Pattern matches compose.test.yml + Docker's auto-naming convention:
