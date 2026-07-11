@@ -1,0 +1,68 @@
+{
+  "_comment": "Per-deploy metric-acceptance battery — reconcile-to-raw + chat-vs-MCP parity + governance. Extends verify-governed-metric-gate.sh (numeric/build-stamp) with: (a) reconcile_to = a second independent read that must equal summary.value; (b) parity = the SAME metric over the chat door == the MCP door (identical numbers both doors); (c) governance (data-only-over-MCP, empty-slice-graceful). 'Would have caught the iter-7 regression at build time.' Source: Desktop artifacts/acceptance_battery.json, reconciled to HEAD tool-existence (S3 2026-07-11).",
+  "_status": "cases with reconcile_to.pending_tool run their self-reconcile + parity legs now; the reconcile-to-raw leg is SKIPPED (loud, tracked) until the named arthik raw-read tool ships — see Q-S3-B5. Never fabricate a provider.",
+  "acceptance_cases": [
+    {
+      "id": "recruiting.pipeline_reconcile",
+      "domain": "longterm",
+      "metric": "pipeline_stage_count",
+      "arguments": {"group_by": "status"},
+      "assert_self_reconcile": "summary.value == sum(series rows)",
+      "reconcile_to": {"tool": "lt_application_pipeline", "field": "total"},
+      "parity": true,
+      "last_verified": "iter-9: 34 == 34"
+    },
+    {
+      "id": "finance.revenue_reconcile",
+      "domain": "arthik",
+      "metric": "revenue",
+      "arguments": {},
+      "assert_self_reconcile": "summary.value == sum(series rows)",
+      "reconcile_to": {"pending_tool": "arthik_billing_summary", "field": "total_invoiced"},
+      "parity": true,
+      "last_verified": "iter-8/9: 181484 == 181484.00 (raw-read tool pending — Q-S3-B5)"
+    },
+    {
+      "id": "finance.margin_reconcile",
+      "domain": "arthik",
+      "metric": "margin",
+      "arguments": {},
+      "assert_self_reconcile": "summary.value == sum(series rows)",
+      "reconcile_to": {"pending_tool": "search_ar_commission_lines", "agg": "sum(base_amount)"},
+      "parity": true,
+      "last_verified": "iter-9: 64464.00 == Sigma(ar_commission_lines.base_amount) (raw-read tool pending — Q-S3-B5)"
+    },
+    {
+      "id": "finance.revenue_variance",
+      "domain": "arthik",
+      "metric": "revenue",
+      "arguments": {},
+      "assert_variance": "summary.variance == summary.value - summary.target (when a target is declared)",
+      "parity": false,
+      "last_verified": "iter-8: target 200000, variance -18516"
+    },
+    {
+      "id": "governance.build_stamped",
+      "domain": "longterm",
+      "metric": "application_count",
+      "arguments": {},
+      "assert_governance": "meta.build.stamped == true AND meta.build.source_commit != null",
+      "note": "stale-deploy detector; already enforced by verify-governed-metric-gate.sh --expected-sha — mirrored here for battery completeness"
+    },
+    {
+      "id": "governance.data_only_over_mcp",
+      "domain": "longterm",
+      "metric": "application_count",
+      "arguments": {},
+      "assert_governance": "ui_blocks == [] over the MCP door (render is the client's job)"
+    },
+    {
+      "id": "governance.empty_slice_graceful",
+      "domain": "longterm",
+      "metric": "pipeline_stage_count",
+      "arguments": {"group_by": "status", "filters": {"status": "__no_such_status__"}},
+      "assert_governance": "success == true AND meta.empty == true (no crash on zero rows)",
+      "note": "zero-data over a DECLARED dimension (status) with a value matching nothing must be graceful; uses a real dimension so it exercises the empty-slice path, not the undeclared-dimension teaching-error path"
+    }
+  ]
+}
