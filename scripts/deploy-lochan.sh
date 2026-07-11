@@ -715,6 +715,31 @@ if (( DEPLOY )) && (( ${#APPS[@]} > 0 )); then
   else
     warn "governed-metric gate script not found at $GATE_SCRIPT — skipping Phase 3b (the iter-8 P0 class is NOT gated this run)"
   fi
+
+  # Phase 3c: acceptance battery — reconcile-to-raw + chat-vs-MCP parity +
+  # governance on top of 3b. Where 3b proves a metric RESOLVES, this proves its
+  # value is CORRECT (self-reconcile + reconcile to an independent raw read) and
+  # the numbers match through both doors. Chat-vs-MCP parity WARNs by default
+  # (the chat metric-routing corpus is evolving) — reported, not deploy-blocking,
+  # until an app's chat corpus is proven (then run with --strict-parity).
+  BATTERY_SCRIPT="$GYANAM_DIR/util/scripts/build/verify-acceptance-battery.sh"
+  if [[ -x "$BATTERY_SCRIPT" ]]; then
+    sect "Phase 3c: metric acceptance battery (reconcile + parity)"
+    for app in "${APPS[@]}"; do
+      if GYANAM_DIR="$GYANAM_DIR" "$BATTERY_SCRIPT" "$app"; then
+        log "$app: acceptance battery GREEN (reconcile + governance passed; parity warnings tracked)"
+      else
+        err "$app: acceptance battery FAILED — a metric value did not reconcile to its raw read (the iter-7 wrong-number class)"
+        DEPLOY_FAILED=1
+      fi
+    done
+    if (( ${DEPLOY_FAILED:-0} )); then
+      err "acceptance battery failed for one or more apps — refusing to call this deploy green"
+      exit 1
+    fi
+  else
+    warn "acceptance battery script not found at $BATTERY_SCRIPT — skipping Phase 3c"
+  fi
 elif (( ${#APPS[@]} == 0 )); then
   warn "no apps requested — use --app <name> to deploy one or more"
 fi
