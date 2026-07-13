@@ -52,7 +52,7 @@
     "_comment": "Which domain repos each app needs. Script pulls only the listed ones. MUST match the domain dev-paths in apps/<app>/packages.json — verified by scripts/verify-app-domains.py (run by deploy-lochan.sh; 2026-07-02 incident: longterm01 listed only longterm, so Phase-1b never synced flow/vyaparam).",
     "fwprod01":    [],
     "lifestyle01": ["mandi/domain/lifelight"],
-    "longterm01":  ["mandi/domain/longterm", "mandi/domain/vyaparam"],
+    "longterm01":  ["mandi/domain/longterm", "mandi/domain/vyaparam", "mandi/domain/grahaka"],
     "grahaka01":   ["mandi/domain/duta", "mandi/domain/grahaka"],
     "pestpro01":   ["mandi/domain/pestpro", "mandi/domain/vyaparam"],
     "covera01":    ["mandi/domain/covera", "mandi/domain/vyaparam"],
