@@ -250,13 +250,25 @@ pkg_src_dir() {
 # when it can't be rebuilt.
 
 # The base image an app's deps layer derives FROM, read from the app's own
-# Dockerfile.deps (its first FROM line) — the Dockerfile is the source of
-# truth, never a hardcoded base name. Return 1 when the app has no deps layer.
+# Dockerfile.deps — the Dockerfile is the source of truth, never a hardcoded
+# base name. Return 1 when the app has no deps layer.
+#
+# ⚠ Multi-stage: the runtime base is the FINAL stage's FROM, NOT the first.
+# A wheel-bundled app (e.g. lifestyle01) opens with a `FROM <pkg>:latest AS
+# pkg-<name>` wheel-source stage, THEN `FROM lochan-backend-base:latest` as the
+# real base. The deps image sits on that LAST stage. Taking `head -1` resolved
+# the wheel-source `pkg-*` stage as the "base" → the layer-prefix gate compared
+# against the wrong parent, never matched, and aborted the deploy on a phantom
+# staleness (2026-07-12, lifestyle01 — the first wheel-bundled app to exercise
+# this path). Skip any `FROM … AS <stage>` stage-declaration (an intermediate
+# build stage is never the runtime base) and return the last bare FROM — the
+# final target, exactly as `docker build` with no --target resolves it.
 app_deps_base() {
   local app="$1" df base
   df="$GYANAM_DIR/apps/$app/Dockerfile.deps"
   [[ -f "$df" ]] || return 1
-  base="$(sed -n -E 's/^FROM[[:space:]]+([^[:space:]]+).*/\1/p' "$df" | head -1)"
+  # bare `FROM <img>` lines only (exclude `FROM … AS <stage>`), last one wins.
+  base="$(sed -n -E 's/^FROM[[:space:]]+([^[:space:]]+)[[:space:]]*$/\1/p' "$df" | tail -1)"
   [[ -n "$base" ]] || return 1
   echo "$base"
 }
