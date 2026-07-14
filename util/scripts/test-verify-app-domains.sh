@@ -1,16 +1,21 @@
 #!/usr/bin/env bash
 # test-verify-app-domains.sh — regression tests for scripts/verify-app-domains.py
 #
+# B1 (2026-07-13): the domain set is DERIVED from apps/<app>/packages.json (the
+# single source of truth), so repos.json's app_to_domains block is retired and
+# with it the old drift-check. This suite guards the SURVIVING contract:
+#   1. all derived domains resolve in the registry     → exit 0
+#   2. a derived domain absent from the registry        → exit 1  (flow-outage
+#                                                          class: can't clone)
+#   3. app with no packages.json, via --app             → exit 1  (fail-loud:
+#                                                          can't derive, must not
+#                                                          silent-zero-clone)
+#   4. app with no packages.json, via --all             → exit 0  (advisory NOTE:
+#                                                          not deployed in a sweep)
+#   5. framework-only app (no domains) resolves          → exit 0
+#
 # Self-contained: builds a throwaway fixture workspace under mktemp (no
-# dependency on the live apps/ tree), then asserts the checker's exit code +
-# key output for every behavior class it guards:
-#   1. clean mapping                       → exit 0
-#   2. app_to_domains MISSING a domain     → exit 1  (the 2026-07-02 incident)
-#   3. stale extra entry in app_to_domains → exit 1
-#   4. domain path absent from registry    → exit 1
-#   5. app not generated yet (--app)       → exit 0 with skip NOTE (bootstrap)
-#   6. undeclared local-only app: --all    → exit 0 (advisory NOTE)
-#                                 --app    → exit 1 (hard error at deploy point)
+# dependency on the live apps/ tree).
 #
 # Run: bash util/scripts/test-verify-app-domains.sh
 
@@ -25,29 +30,25 @@ trap 'rm -rf "$FIXTURE"' EXIT
 
 PASS=0; FAIL=0
 
-# make_fixture <app_to_domains-json-fragment> — writes repos.json with a fixed
-# 2-entry registry, plus apps/goodapp + apps/localonly packages.json fixtures.
-make_fixture() {
-  local a2d="$1"
-  mkdir -p "$FIXTURE/apps/goodapp" "$FIXTURE/apps/localonly"
-  cat > "$FIXTURE/repos.json" <<EOF
+# base_repos — resets the fixture (fresh apps/ each test — no cross-test leak)
+# and writes a repos.json with a fixed 2-entry mandi_domain registry (alpha +
+# beta) and NO app_to_domains block (retired by B1).
+base_repos() {
+  rm -rf "$FIXTURE/apps"
+  cat > "$FIXTURE/repos.json" <<'EOF'
 {
   "mandi_domain": [
     { "path": "mandi/domain/alpha", "url": "https://example.com/alpha.git" },
     { "path": "mandi/domain/beta",  "url": "https://example.com/beta.git" }
-  ],
-  "app_to_domains": { "_comment": "test fixture", $a2d }
+  ]
 }
 EOF
-  cat > "$FIXTURE/apps/goodapp/packages.json" <<'EOF'
-{ "packages": {
-    "alpha": { "dev": "../../mandi/domain/alpha" },
-    "beta":  { "dev": "../../mandi/domain/beta" }
-} }
-EOF
-  cat > "$FIXTURE/apps/localonly/packages.json" <<'EOF'
-{ "packages": { "alpha": { "dev": "../../mandi/domain/alpha" } } }
-EOF
+}
+
+# app_pkgjson <app> <packages-json-body>
+app_pkgjson() {
+  mkdir -p "$FIXTURE/apps/$1"
+  printf '%s\n' "$2" > "$FIXTURE/apps/$1/packages.json"
 }
 
 # check <name> <expected-exit> <checker args...>
@@ -56,45 +57,44 @@ check() {
   local got=0
   python3 "$CHECKER" --gyanam "$FIXTURE" "$@" >/dev/null 2>&1 || got=$?
   if [[ "$got" == "$want" ]]; then
-    echo "ok   $name"
-    PASS=$((PASS + 1))
+    echo "ok   $name"; PASS=$((PASS + 1))
   else
-    echo "FAIL $name (exit $got, wanted $want)"
-    FAIL=$((FAIL + 1))
+    echo "FAIL $name (exit $got, wanted $want)"; FAIL=$((FAIL + 1))
   fi
 }
 
-# 1. clean mapping
-make_fixture '"goodapp": ["mandi/domain/alpha", "mandi/domain/beta"]'
-check "clean mapping passes" 0 --app goodapp
-
-# 2. missing domain in app_to_domains (the incident class)
-make_fixture '"goodapp": ["mandi/domain/alpha"]'
-check "missing domain fails" 1 --app goodapp
-
-# 3. stale extra entry
-make_fixture '"goodapp": ["mandi/domain/alpha", "mandi/domain/beta", "mandi/domain/alpha-old"]'
-check "stale extra entry fails" 1 --app goodapp
-
-# 4. mapped path with no registry URL (flow-not-in-registry class)
-make_fixture '"goodapp": ["mandi/domain/alpha", "mandi/domain/beta", "mandi/domain/gamma"]'
-cat > "$FIXTURE/apps/goodapp/packages.json" <<'EOF'
-{ "packages": {
+# 1. all derived domains resolve in the registry → clean
+base_repos
+app_pkgjson goodapp '{ "packages": {
     "alpha": { "dev": "../../mandi/domain/alpha" },
-    "beta":  { "dev": "../../mandi/domain/beta" },
+    "beta":  { "dev": "../../mandi/domain/beta" }
+} }'
+check "derived domains resolve → clean" 0 --app goodapp
+
+# 2. a derived domain absent from the registry → fail (flow-outage class)
+base_repos
+app_pkgjson badapp '{ "packages": {
+    "alpha": { "dev": "../../mandi/domain/alpha" },
     "gamma": { "dev": "../../mandi/domain/gamma" }
-} }
-EOF
-check "unregistered domain fails" 1 --app goodapp
+} }'
+check "unregistered derived domain fails" 1 --app badapp
 
-# 5. app not generated yet → skip, exit 0 (fresh bootstrap must not be blocked)
-make_fixture '"goodapp": ["mandi/domain/alpha", "mandi/domain/beta"]'
-check "ungenerated app skips" 0 --app nosuchapp
+# 3. no packages.json, via --app → fail-loud (cannot derive, no silent skip)
+base_repos
+check "no packages.json --app fails loud" 1 --app nosuchapp
 
-# 6. undeclared local-only app: advisory under --all, hard error under --app
-make_fixture '"goodapp": ["mandi/domain/alpha", "mandi/domain/beta"]'
-check "undeclared app advisory under --all" 0 --all
-check "undeclared app hard error under --app" 1 --app localonly
+# 4. no packages.json, via --all → advisory (exit 0; not deployed in a sweep)
+base_repos
+app_pkgjson goodapp '{ "packages": {
+    "alpha": { "dev": "../../mandi/domain/alpha" },
+    "beta":  { "dev": "../../mandi/domain/beta" }
+} }'
+check "no packages.json --all is advisory" 0 --all
+
+# 5. framework-only app (no mandi/domain deps) resolves clean
+base_repos
+app_pkgjson fwapp '{ "packages": { "somepkg": { "dev": "../../mandi/common/somepkg" } } }'
+check "framework-only app resolves clean" 0 --app fwapp
 
 echo
 echo "passed: $PASS  failed: $FAIL"
