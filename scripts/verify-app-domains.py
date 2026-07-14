@@ -68,14 +68,64 @@ def derived_domains(gyanam_dir, app):
     return sorted(needs)
 
 
+def scan_domain_dirs(gyanam_dir):
+    """DERIVE which mandi/domain/<pkg> paths exist by scanning the directory
+    (B2, 2026-07-13). Excludes ``*-bak`` backups and dot-dirs. Replaces the
+    hand-maintained repos.json mandi_domain path-list (which drifted: 14 dirs
+    on disk vs 12 registry entries).
+
+    Scans by DIRECTORY existence, not mandi.json presence — some real domains
+    (e.g. duta, a cross-cutting substrate domain) carry no mandi.json but are
+    valid clone targets via the registry. A domain is "real" iff it is a
+    non-backup directory under mandi/domain/; whether it resolves to a url is
+    the separate completeness check (verify_domain_registry)."""
+    base = os.path.join(gyanam_dir, "mandi", "domain")
+    if not os.path.isdir(base):
+        return []
+    found = []
+    for name in sorted(os.listdir(base)):
+        if name.endswith("-bak") or name.startswith("."):
+            continue
+        d = os.path.join(base, name)
+        if not os.path.isdir(d):
+            continue
+        # Exclude wrap-baseline artifacts (a legacy app captured as a wrap
+        # reference, e.g. opencats — migrated_from + 'wrap-baseline' tag) — they
+        # are not standalone deployable domain repos.
+        mj = os.path.join(d, "mandi.json")
+        if os.path.isfile(mj):
+            try:
+                cfg = load_json(mj) or {}
+                if cfg.get("migrated_from") or "wrap-baseline" in (cfg.get("tags") or []):
+                    continue
+            except (json.JSONDecodeError, OSError):
+                pass
+        found.append(f"mandi/domain/{name}")
+    return found
+
+
+def resolve_domain_url(gyanam_dir, repos, domain_path):
+    """Resolve a domain path's clone URL — PREFER its own mandi.json ``repo``
+    (the canonical url field in mandi.json), FALL BACK to the repos.json
+    mandi_domain registry (B2). Returns "" if neither source has a url.
+    Mirrors deploy-lochan.sh repos_domain_url."""
+    mj = os.path.join(gyanam_dir, domain_path, "mandi.json")
+    if os.path.isfile(mj):
+        try:
+            url = (load_json(mj) or {}).get("repo", "")
+            if url:
+                return url
+        except (json.JSONDecodeError, OSError):
+            pass
+    for e in repos.get("mandi_domain", []):
+        if isinstance(e, dict) and e.get("path") == domain_path:
+            return e.get("url", "")
+    return ""
+
+
 def verify_app(app, repos, gyanam_dir, entry_required):
     """Returns (errors, warnings) message lists for one app."""
     errors, warnings = [], []
-    registry_urls = {
-        e["path"]: e.get("url", "")
-        for e in repos.get("mandi_domain", [])
-        if isinstance(e, dict) and e.get("path")
-    }
 
     derived = derived_domains(gyanam_dir, app)
     if derived is None:
@@ -86,12 +136,27 @@ def verify_app(app, repos, gyanam_dir, entry_required):
         (errors if entry_required else warnings).append(msg)
         return errors, warnings
 
-    # Registry completeness: every derived domain must have a clone URL.
+    # URL completeness: every domain the app derives from packages.json must
+    # resolve to a clone URL (own mandi.json first, then the registry).
     for path in derived:
-        if not registry_urls.get(path):
-            errors.append(f"{app}: {path} (needed per packages.json) has no URL "
-                          f"in the mandi_domain registry — it can never be cloned")
+        if not resolve_domain_url(gyanam_dir, repos, path):
+            errors.append(f"{app}: {path} (needed per packages.json) resolves to "
+                          f"NO url (checked mandi.json + mandi_domain registry) "
+                          f"— it can never be cloned")
     return errors, warnings
+
+
+def verify_domain_registry(repos, gyanam_dir):
+    """Registry-completeness over the SCANNED domain dirs (B2): every existing
+    mandi/domain/<pkg> (with a mandi.json, non-backup) must resolve to a url.
+    This surfaces the 14-vs-12 drift (a domain dir on disk with no clone url)
+    without hand-listing which paths exist."""
+    errors = []
+    for path in scan_domain_dirs(gyanam_dir):
+        if not resolve_domain_url(gyanam_dir, repos, path):
+            errors.append(f"{path}: domain dir exists (has mandi.json) but resolves "
+                          f"to NO url (mandi.json + mandi_domain registry) — cannot clone")
+    return errors
 
 
 def main():
@@ -127,11 +192,20 @@ def main():
             print(f"ERROR {e}", file=sys.stderr)
         all_errors.extend(errors)
 
+    # B2: on a full sweep, also audit the DERIVED domain registry — every
+    # mandi/domain/<pkg> that exists on disk must resolve to a clone url. This
+    # is the 14-vs-12 drift guard, now structural (dir-scan, not a hand-list).
+    if args.all:
+        for e in verify_domain_registry(repos, gyanam_dir):
+            print(f"ERROR {e}", file=sys.stderr)
+            all_errors.append(e)
+
     if all_errors:
-        print(f"\nderived-domain verification FAILED: {len(all_errors)} error(s). "
-              f"Fix the mandi_domain registry / regenerate packages.json.", file=sys.stderr)
+        print(f"\ndomain verification FAILED: {len(all_errors)} error(s). "
+              f"Fix the mandi_domain registry / mandi.json url / regenerate packages.json.",
+              file=sys.stderr)
         return 1
-    print(f"derived domains verified clean for {len(apps)} app(s).")
+    print(f"domains verified clean for {len(apps)} app(s).")
     return 0
 
 

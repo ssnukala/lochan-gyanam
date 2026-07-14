@@ -34,7 +34,7 @@ PASS=0; FAIL=0
 # and writes a repos.json with a fixed 2-entry mandi_domain registry (alpha +
 # beta) and NO app_to_domains block (retired by B1).
 base_repos() {
-  rm -rf "$FIXTURE/apps"
+  rm -rf "$FIXTURE/apps" "$FIXTURE/mandi"
   cat > "$FIXTURE/repos.json" <<'EOF'
 {
   "mandi_domain": [
@@ -95,6 +95,32 @@ check "no packages.json --all is advisory" 0 --all
 base_repos
 app_pkgjson fwapp '{ "packages": { "somepkg": { "dev": "../../mandi/common/somepkg" } } }'
 check "framework-only app resolves clean" 0 --app fwapp
+
+# ── B2: url from own mandi.json (repo field) + dir-scan + wrap-exclude ────────
+
+# domain_mandi <name> <mandi-json-body> — create a mandi/domain/<name>/mandi.json
+domain_mandi() {
+  mkdir -p "$FIXTURE/mandi/domain/$1"
+  printf '%s\n' "$2" > "$FIXTURE/mandi/domain/$1/mandi.json"
+}
+
+# 6. url resolves from the domain's OWN mandi.json `repo` (B2 — prefer over
+#    registry). gamma is NOT in the registry but HAS a mandi.json repo → clean.
+base_repos
+domain_mandi gamma '{ "name": "gamma", "tier": "domain", "repo": "https://example.com/gamma.git" }'
+app_pkgjson gapp '{ "packages": { "gamma": { "dev": "../../mandi/domain/gamma" } } }'
+check "url from own mandi.json repo resolves" 0 --app gapp
+
+# 7. --all dir-scan: a domain DIR with a mandi.json but NO url anywhere → fail
+base_repos
+domain_mandi orphan '{ "name": "orphan", "tier": "domain" }'
+check "scanned domain with no url fails --all" 1 --all
+
+# 8. --all dir-scan EXCLUDES a wrap-baseline artifact (migrated_from tag) — an
+#    orphan wrap domain must NOT trip the registry audit.
+base_repos
+domain_mandi wrapbase '{ "name": "wrapbase", "tier": "domain", "migrated_from": "legacy-1.0", "tags": ["wrap-baseline"] }'
+check "wrap-baseline domain excluded from scan" 0 --all
 
 echo
 echo "passed: $PASS  failed: $FAIL"
