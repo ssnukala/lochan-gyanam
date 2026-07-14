@@ -104,7 +104,16 @@ DOMAINS=()
 while IFS= read -r _d; do
   [[ -n "$_d" ]] && DOMAINS+=("$_d")
 done < <(jq -r '([.primary] + (.packages | keys)) | unique | .[]' "$PKG_JSON" 2>/dev/null)
-[[ ${#DOMAINS[@]} -gt 0 ]] || { echo "  ✗ no domains in $PKG_JSON" >&2; exit 1; }
+# No domains = a framework-only app (e.g. fwprod01, the framework test app). It
+# structurally CANNOT declare a deploy_gate metric (those live in domain
+# packages), so there is nothing to gate — a clean no-op (exit 0), NOT a
+# failure. Same contract as the "0 deploy_gate metrics" case below; treating
+# it as exit 1 wrongly makes every domainless app un-deployable-green.
+if [[ ${#DOMAINS[@]} -eq 0 ]]; then
+  echo "  · $APP declares no domains — no domain deploy_gate metrics possible (clean no-op)"
+  echo "✓ $APP governed-metric gate GREEN (framework-only, 0 gate metrics)"
+  exit 0
+fi
 
 # Collect deploy_gate metrics across the app's domains (via describe_metrics).
 declare -a GATE_METRICS=()   # "domain metric"
