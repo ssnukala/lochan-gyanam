@@ -164,12 +164,30 @@ PY
 # Prints the URL (or nothing + exit 0) for the first matching entry.
 repos_domain_url() {
   local domain_path="$1"
-  python3 - "$REPOS_JSON" "$domain_path" <<'PY'
-import json, sys
-with open(sys.argv[1]) as f:
+  # B2 (2026-07-13): resolve a domain's clone URL — PREFER the domain's OWN
+  # mandi/domain/<pkg>/mandi.json `url` (self-describing, toward the
+  # repos.json-as-bootstrap end state), FALL BACK to the repos.json
+  # mandi_domain registry (for domains whose mandi.json has no url yet — e.g.
+  # bharti until S2 backfills it — or no mandi.json at all — e.g. duta). Prints
+  # nothing (caller fails loud) if neither source has a url.
+  python3 - "$GYANAM_DIR" "$REPOS_JSON" "$domain_path" <<'PY'
+import json, os, sys
+gyanam_dir, repos_json, domain_path = sys.argv[1], sys.argv[2], sys.argv[3]
+# 1. own mandi.json `repo` (the canonical url field in mandi.json — preferred)
+mj = os.path.join(gyanam_dir, domain_path, "mandi.json")
+if os.path.isfile(mj):
+    try:
+        with open(mj) as f:
+            url = (json.load(f) or {}).get("repo", "")
+        if url:
+            print(url); sys.exit(0)
+    except (json.JSONDecodeError, OSError):
+        pass
+# 2. repos.json mandi_domain registry (fallback)
+with open(repos_json) as f:
     data = json.load(f)
 for entry in data.get("mandi_domain", []):
-    if isinstance(entry, dict) and entry.get("path") == sys.argv[2]:
+    if isinstance(entry, dict) and entry.get("path") == domain_path:
         url = entry.get("url", "")
         if url:
             print(url)
