@@ -79,17 +79,22 @@ Domain packages live in `mandi/domain/*` and are pulled **only when the
 corresponding `--app` is requested**. To wire a new one:
 
 1. Create the domain-package repo (e.g. `ssnukala/lochan-foobar`).
-2. Create the app dir (e.g. `ssnukala/lochan` contributes `apps/foobar01/`).
-3. Add two entries to `repos.json`:
+2. Create the app dir (e.g. `ssnukala/lochan` contributes `apps/foobar01/`) — its
+   generated `apps/foobar01/packages.json` declares the domain packages it needs.
+3. Add the domain repo to the `mandi_domain` clone registry in `repos.json`:
 
    ```json
    "mandi_domain": [
      { "path": "mandi/domain/foobar", "url": "https://github.com/ssnukala/lochan-foobar.git" }
-   ],
-   "app_to_domains": {
-     "foobar01": ["mandi/domain/foobar"]
-   }
+   ]
    ```
+
+   That's the only `repos.json` entry needed. The set of domains an app pulls is
+   **derived from its `apps/<app>/packages.json`** (the single source of truth —
+   it's what the generated Dockerfile builds from), so there is no separate
+   hand-maintained `app_to_domains` mapping to keep in sync (retired in B1,
+   2026-07-13; the deploy derives + verifies every derived domain resolves in the
+   `mandi_domain` registry).
 
 4. `./scripts/deploy-lochan.sh --prod --app foobar01` and you're live.
 

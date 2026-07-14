@@ -119,17 +119,44 @@ for entry in data.get(sys.argv[2], []):
 PY
 }
 
-# List domain repo paths for a given app from app_to_domains.
-# Prints one path per line; prints nothing (exit 0) for unknown apps.
+# List the domain repo paths a given app needs — DERIVED from the app's OWN
+# apps/<app>/packages.json (B1, 2026-07-13). packages.json is the truth: it is
+# what the generated Dockerfile COPYs its domain packages from, so deriving the
+# clone-set from it makes clone-set ≡ build-set by construction — the drift that
+# caused the 2026-07-02 outage (app_to_domains missing flow/vyaparam → not
+# cloned → deploy shipped without them) and the 2026-07-13 Phase-0 fail becomes
+# structurally impossible. Retires the hand-maintained repos.json app_to_domains
+# shadow. Mirrors verify-app-domains.py:derived_domains() (DOMAIN_PREFIX filter).
+# Prints one mandi/domain/<pkg> path per line.
+# FAIL-LOUD if the app has no generated packages.json (cannot derive → must not
+# silently clone zero domains, the exact silent-skip class B1 closes).
 repos_app_domains() {
   local app="$1"
-  python3 - "$REPOS_JSON" "$app" <<'PY'
-import json, sys
-with open(sys.argv[1]) as f:
-    data = json.load(f)
-for p in data.get("app_to_domains", {}).get(sys.argv[2], []) or []:
-    if isinstance(p, str):
-        print(p)
+  python3 - "$GYANAM_DIR" "$app" <<'PY'
+import json, os, sys
+gyanam_dir, app = sys.argv[1], sys.argv[2]
+pkg_file = os.path.join(gyanam_dir, "apps", app, "packages.json")
+if not os.path.isfile(pkg_file):
+    sys.stderr.write(
+        f"ERROR: apps/{app}/packages.json not found — cannot derive the domain "
+        f"set for '{app}'. Generate it (daksh scaffold / generate-app-config.py) "
+        f"before deploying; refusing to clone zero domains silently.\n"
+    )
+    sys.exit(2)
+with open(pkg_file) as f:
+    doc = json.load(f)
+DOMAIN_PREFIX = "mandi/domain/"
+packages = doc.get("packages", {}) if isinstance(doc, dict) else {}
+specs = packages.values() if isinstance(packages, dict) else packages
+seen = set()
+for spec in specs:
+    dev = spec.get("dev", "") if isinstance(spec, dict) else ""
+    if not dev:
+        continue
+    rel = os.path.normpath(os.path.join("apps", app, dev))
+    if rel.startswith(DOMAIN_PREFIX) and rel not in seen:
+        seen.add(rel)
+        print(rel)
 PY
 }
 
@@ -291,21 +318,24 @@ layers_prefix_match() {
   [[ "$img" == "${base%]},"* ]]
 }
 
-# ── Phase 0: verify app→domain mapping (class-prevention, 2026-07-02) ──────
-# app_to_domains drift is how the longterm01 server deploy silently skipped
-# flow/vyaparam (mapping listed only longterm). Verify the mapping against
-# each requested app's generated packages.json BEFORE doing any work and fail
-# loud on any gap — including a domain path missing from the mandi_domain
-# registry. Apps not generated yet are skipped inside the verifier (fresh
-# bootstrap: apps/ appears after the first sync + generate).
+# ── Phase 0: verify each app's derived domains resolve in the registry ─────
+# B1 (2026-07-13): the domain set is now DERIVED from apps/<app>/packages.json
+# (see repos_app_domains), so the old app_to_domains-vs-packages.json drift
+# check is retired — the two can no longer disagree (there is only one source).
+# What SURVIVES is the mandi_domain registry-completeness check (the OTHER half
+# of the 2026-07-02 outage: flow had no registry entry, so even a correct
+# mapping could not clone it). Verify BEFORE any work: every domain each app
+# derives from packages.json must resolve to a URL in mandi_domain — fail loud
+# on any gap. Apps with no generated packages.json fail loud here (cannot
+# derive → cannot deploy), matching the Phase-1b derive gate.
 if (( ${#APPS[@]} > 0 )); then
-  sect "Phase 0: Verify app_to_domains vs apps/<app>/packages.json"
+  sect "Phase 0: Verify derived domains resolve in mandi_domain registry"
   verify_args=()
   for app in "${APPS[@]}"; do verify_args+=(--app "$app"); done
   if python3 "$SCRIPT_DIR/verify-app-domains.py" --gyanam "$GYANAM_DIR" "${verify_args[@]}"; then
-    log "app_to_domains mapping verified"
+    log "derived domains verified (all resolve in mandi_domain registry)"
   else
-    err "app_to_domains mapping is WRONG for a requested app — fix repos.json (app_to_domains / mandi_domain) before deploying"
+    err "a requested app's derived domain has no mandi_domain URL (or has no packages.json) — fix repos.json mandi_domain / regenerate packages.json before deploying"
     exit 1
   fi
 fi
@@ -322,8 +352,17 @@ if (( PULL )); then
     for app in "${APPS[@]}"; do
       # bash-3.2-compatible array read (macOS host bash is 3.2.57; `mapfile`
       # is bash-4+). The while-read-into-array idiom is the portable equivalent.
+      # B1: repos_app_domains DERIVES from packages.json + exits non-zero (2) if
+      # the app has no generated packages.json — capture that so we FAIL LOUD
+      # (a deploy that can't derive an app's domains must abort, not silently
+      # clone zero). Run it separately first so its exit code is observable
+      # (a bare process-substitution swallows the exit under `set -e`).
+      if ! _derived="$(repos_app_domains "$app")"; then
+        err "cannot derive domain set for '$app' (no apps/$app/packages.json) — aborting BEFORE build"
+        exit 1
+      fi
       app_doms=()
-      while IFS= read -r _line; do app_doms+=("$_line"); done < <(repos_app_domains "$app")
+      while IFS= read -r _line; do [[ -n "$_line" ]] && app_doms+=("$_line"); done <<< "$_derived"
       # guard empty-array expansion under set -u (bash 3.2)
       (( ${#app_doms[@]} > 0 )) && for d in "${app_doms[@]}"; do local_domains+=("$d"); done
     done
@@ -342,10 +381,15 @@ if (( PULL )); then
     else
       for dom in "${local_domains[@]}"; do
         url=$(repos_domain_url "$dom")
-        [[ -z "$url" ]] && { warn "no url for $dom in repos.json"; continue; }
+        # B1 registry-URL gate (PRESERVED from verify-app-domains.py's 2nd job):
+        # a derived domain with no mandi_domain registry URL can NEVER be cloned
+        # — the build would then reference a package that isn't on disk. This was
+        # the OTHER half of the 2026-07-02 flow outage (flow had no registry
+        # entry). FAIL LOUD, not warn+continue — abort BEFORE building.
+        [[ -z "$url" ]] && { err "domain '$dom' (needed per apps/*/packages.json) has NO url in repos.json mandi_domain registry — cannot clone; aborting BEFORE build"; exit 1; }
         clone_or_pull "$dom" "$url" || true   # see pull_bucket note; gate below
       done
-      log "domain repos: ${#local_domains[@]} synced"
+      log "domain repos: ${#local_domains[@]} synced (derived from packages.json)"
     fi
   fi
 
