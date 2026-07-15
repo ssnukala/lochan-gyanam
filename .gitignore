@@ -68,6 +68,8 @@ util/scripts/*
 !util/scripts/wave-runner.sh
 !util/scripts/migrate-locales-to-canonical.sh
 !util/scripts/probe-gap18-compliance-score.sh
+!util/scripts/probe-wrap-answer-keys.sh
+!util/scripts/probe-wrap-answer-keys.py
 
 # ── Secrets — NEVER commit ───────────────────────────────────────────────
 .env
