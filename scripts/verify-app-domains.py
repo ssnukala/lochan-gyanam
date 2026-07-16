@@ -1,25 +1,30 @@
 #!/usr/bin/env python3
-"""verify-app-domains.py — verify each app's DERIVED domain set resolves in the
-`mandi_domain` registry.
+"""verify-app-domains.py — verify each app's DERIVED dep set (domain + common)
+resolves to a clone URL in the registry.
 
-B1 (2026-07-13): the deploy now DERIVES an app's domain set directly from
-`apps/<app>/packages.json` (deploy-lochan.sh `repos_app_domains`), which is the
-single source of truth — it is what the generated Dockerfile COPYs its domain
+B1 (2026-07-13): the deploy now DERIVES an app's dep set directly from
+`apps/<app>/packages.json` (deploy-lochan.sh `repos_app_deps`), which is the
+single source of truth — it is what the generated Dockerfile COPYs its
 packages from. So the old `app_to_domains` block in repos.json is RETIRED, and
 with it the app_to_domains-vs-packages.json DRIFT check this script used to do
 (the two can no longer disagree — there is only one source). What survives is
 the OTHER half of the 2026-07-02 outage class:
 
-  Every domain path an app derives from packages.json MUST resolve to a URL in
-  the `mandi_domain` registry — else it can never be cloned (flow had no
-  registry entry at all, so even a correct mapping could not have cloned it).
+  Every dep path an app derives from packages.json MUST resolve to a URL — else
+  it can never be cloned (flow had no registry entry at all, so even a correct
+  mapping could not have cloned it).
+
+B4 (2026-07-17): the per-app check now covers BOTH `mandi/domain/` and
+`mandi/common/` deps, matching deploy-lochan.sh's widened Phase-1b dep-scoped
+sync — so a missing COMMON url (e.g. arthik) also aborts in Phase 0, before any
+build, instead of surfacing later in the Phase-1b clone loop.
 
 Checks per app:
   1. The app has a generated `packages.json` (fail loud if not — cannot derive
-     the domain set; a deploy that cannot derive must abort, not silently sync
-     zero domains).
-  2. Every `mandi/domain/<pkg>` dev-path derived from that packages.json
-     resolves to a URL in the `mandi_domain` registry.
+     the dep set; a deploy that cannot derive must abort, not silently sync
+     zero deps).
+  2. Every `mandi/{domain,common}/<pkg>` dev-path derived from that
+     packages.json resolves to a URL (own mandi.json first, then the registry).
 
 Modes:
   --app <name>   verify ONE app; everything is a hard ERROR (exit 1). Used by
@@ -38,6 +43,7 @@ import os
 import sys
 
 DOMAIN_PREFIX = "mandi/domain/"
+DEP_PREFIXES = ("mandi/domain/", "mandi/common/")
 
 
 def load_json(path):
@@ -45,12 +51,12 @@ def load_json(path):
         return json.load(f)
 
 
-def derived_domains(gyanam_dir, app):
-    """Domain repo paths the app's packages.json points at, or None if the app
-    has no generated packages.json.
+def derived_deps(gyanam_dir, app):
+    """Every mandi dep repo path (domain + common) the app's packages.json points
+    at, or None if the app has no generated packages.json.
 
     This is the single source of truth the deploy derives its clone-set from
-    (mirrored in deploy-lochan.sh `repos_app_domains`)."""
+    (mirrored in deploy-lochan.sh `repos_app_deps`)."""
     pkg_file = os.path.join(gyanam_dir, "apps", app, "packages.json")
     if not os.path.isfile(pkg_file):
         return None
@@ -63,7 +69,7 @@ def derived_domains(gyanam_dir, app):
         if not dev:
             continue
         rel = os.path.normpath(os.path.join("apps", app, dev))
-        if rel.startswith(DOMAIN_PREFIX):
+        if rel.startswith(DEP_PREFIXES):
             needs.add(rel)
     return sorted(needs)
 
@@ -104,12 +110,13 @@ def scan_domain_dirs(gyanam_dir):
     return found
 
 
-def resolve_domain_url(gyanam_dir, repos, domain_path):
-    """Resolve a domain path's clone URL — PREFER its own mandi.json ``repo``
+def resolve_dep_url(gyanam_dir, repos, dep_path):
+    """Resolve a dep path's clone URL — PREFER its own mandi.json ``repo``
     (the canonical url field in mandi.json), FALL BACK to the repos.json
-    mandi_domain registry (B2). Returns "" if neither source has a url.
-    Mirrors deploy-lochan.sh repos_domain_url."""
-    mj = os.path.join(gyanam_dir, domain_path, "mandi.json")
+    registry (B2). B4: the fallback searches BOTH mandi_domain and mandi_common,
+    so a common dep (arthik) resolves from its own bucket. Returns "" if neither
+    source has a url. Mirrors deploy-lochan.sh repos_dep_url."""
+    mj = os.path.join(gyanam_dir, dep_path, "mandi.json")
     if os.path.isfile(mj):
         try:
             url = (load_json(mj) or {}).get("repo", "")
@@ -117,9 +124,10 @@ def resolve_domain_url(gyanam_dir, repos, domain_path):
                 return url
         except (json.JSONDecodeError, OSError):
             pass
-    for e in repos.get("mandi_domain", []):
-        if isinstance(e, dict) and e.get("path") == domain_path:
-            return e.get("url", "")
+    for bucket in ("mandi_domain", "mandi_common"):
+        for e in repos.get(bucket, []):
+            if isinstance(e, dict) and e.get("path") == dep_path:
+                return e.get("url", "")
     return ""
 
 
@@ -127,22 +135,23 @@ def verify_app(app, repos, gyanam_dir, entry_required):
     """Returns (errors, warnings) message lists for one app."""
     errors, warnings = [], []
 
-    derived = derived_domains(gyanam_dir, app)
+    derived = derived_deps(gyanam_dir, app)
     if derived is None:
         # No generated packages.json → cannot derive. A hard error at the deploy
         # consumption point (--app); an advisory NOTE in the --all sweep.
-        msg = (f"{app}: no apps/{app}/packages.json — cannot derive its domain "
+        msg = (f"{app}: no apps/{app}/packages.json — cannot derive its dep "
                f"set (generate it before deploying)")
         (errors if entry_required else warnings).append(msg)
         return errors, warnings
 
-    # URL completeness: every domain the app derives from packages.json must
-    # resolve to a clone URL (own mandi.json first, then the registry).
+    # URL completeness: every dep (domain + common) the app derives from
+    # packages.json must resolve to a clone URL (own mandi.json first, then the
+    # registry — either bucket).
     for path in derived:
-        if not resolve_domain_url(gyanam_dir, repos, path):
+        if not resolve_dep_url(gyanam_dir, repos, path):
             errors.append(f"{app}: {path} (needed per packages.json) resolves to "
-                          f"NO url (checked mandi.json + mandi_domain registry) "
-                          f"— it can never be cloned")
+                          f"NO url (checked mandi.json + mandi_domain/mandi_common "
+                          f"registry) — it can never be cloned")
     return errors, warnings
 
 
@@ -153,7 +162,7 @@ def verify_domain_registry(repos, gyanam_dir):
     without hand-listing which paths exist."""
     errors = []
     for path in scan_domain_dirs(gyanam_dir):
-        if not resolve_domain_url(gyanam_dir, repos, path):
+        if not resolve_dep_url(gyanam_dir, repos, path):
             errors.append(f"{path}: domain dir exists (has mandi.json) but resolves "
                           f"to NO url (mandi.json + mandi_domain registry) — cannot clone")
     return errors
@@ -201,11 +210,11 @@ def main():
             all_errors.append(e)
 
     if all_errors:
-        print(f"\ndomain verification FAILED: {len(all_errors)} error(s). "
-              f"Fix the mandi_domain registry / mandi.json url / regenerate packages.json.",
+        print(f"\ndep verification FAILED: {len(all_errors)} error(s). "
+              f"Fix the mandi_domain/mandi_common registry / mandi.json url / regenerate packages.json.",
               file=sys.stderr)
         return 1
-    print(f"domains verified clean for {len(apps)} app(s).")
+    print(f"deps verified clean for {len(apps)} app(s).")
     return 0
 
 
