@@ -4,8 +4,10 @@
 # ============================================================================
 #
 # Reads repos.json (next to this script) for the canonical list of repos.
-# Pulls every framework + mandi_common repo on every run. Pulls a
-# mandi_domain repo only when an app that needs it is requested via --app.
+# Pulls every framework repo on every run. With --app, pulls ONLY that app's
+# DECLARED dep closure — the mandi_domain AND mandi_common repos its
+# packages.json names (B4, 2026-07-17). A bare --pull-only (no --app) still
+# refreshes ALL mandi_common repos.
 #
 # Usage:
 #   ./scripts/deploy-lochan.sh --prod    --app fwprod01
@@ -119,18 +121,26 @@ for entry in data.get(sys.argv[2], []):
 PY
 }
 
-# List the domain repo paths a given app needs — DERIVED from the app's OWN
-# apps/<app>/packages.json (B1, 2026-07-13). packages.json is the truth: it is
-# what the generated Dockerfile COPYs its domain packages from, so deriving the
-# clone-set from it makes clone-set ≡ build-set by construction — the drift that
-# caused the 2026-07-02 outage (app_to_domains missing flow/vyaparam → not
-# cloned → deploy shipped without them) and the 2026-07-13 Phase-0 fail becomes
-# structurally impossible. Retires the hand-maintained repos.json app_to_domains
-# shadow. Mirrors verify-app-domains.py:derived_domains() (DOMAIN_PREFIX filter).
-# Prints one mandi/domain/<pkg> path per line.
+# List EVERY mandi dep repo path a given app needs — DERIVED from the app's OWN
+# apps/<app>/packages.json (B1, 2026-07-13; widened to common B4, 2026-07-17).
+# packages.json is the truth: it is what the generated Dockerfile COPYs its
+# packages from, so deriving the clone-set from it makes clone-set ≡ build-set by
+# construction — the drift that caused the 2026-07-02 outage (app_to_domains
+# missing flow/vyaparam → not cloned → deploy shipped without them) and the
+# 2026-07-13 Phase-0 fail becomes structurally impossible. Retires the
+# hand-maintained repos.json app_to_domains shadow.
+#
+# B4 (2026-07-17): the filter now matches BOTH mandi/domain/ AND mandi/common/ —
+# a common dep (e.g. longterm01's arthik) is a real per-app dependency exactly
+# like a domain, and dropping it here forced Phase 1 to blanket-pull ALL 14
+# mandi_common repos, then gate the whole deploy on any of those 14 being dirty —
+# even for an app (sanchalak01) that imports ZERO common. Precedent: Bazel `deps`
+# / pnpm --filter / Nx affected-graph — sync a target's declared closure, not the
+# whole monorepo. Mirrors verify-app-domains.py:derived_deps() (same prefixes).
+# Prints one mandi/{domain,common}/<pkg> path per line.
 # FAIL-LOUD if the app has no generated packages.json (cannot derive → must not
-# silently clone zero domains, the exact silent-skip class B1 closes).
-repos_app_domains() {
+# silently clone zero deps, the exact silent-skip class B1 closes).
+repos_app_deps() {
   local app="$1"
   python3 - "$GYANAM_DIR" "$app" <<'PY'
 import json, os, sys
@@ -138,14 +148,14 @@ gyanam_dir, app = sys.argv[1], sys.argv[2]
 pkg_file = os.path.join(gyanam_dir, "apps", app, "packages.json")
 if not os.path.isfile(pkg_file):
     sys.stderr.write(
-        f"ERROR: apps/{app}/packages.json not found — cannot derive the domain "
+        f"ERROR: apps/{app}/packages.json not found — cannot derive the dep "
         f"set for '{app}'. Generate it (daksh scaffold / generate-app-config.py) "
-        f"before deploying; refusing to clone zero domains silently.\n"
+        f"before deploying; refusing to clone zero deps silently.\n"
     )
     sys.exit(2)
 with open(pkg_file) as f:
     doc = json.load(f)
-DOMAIN_PREFIX = "mandi/domain/"
+DEP_PREFIXES = ("mandi/domain/", "mandi/common/")
 packages = doc.get("packages", {}) if isinstance(doc, dict) else {}
 specs = packages.values() if isinstance(packages, dict) else packages
 seen = set()
@@ -154,27 +164,31 @@ for spec in specs:
     if not dev:
         continue
     rel = os.path.normpath(os.path.join("apps", app, dev))
-    if rel.startswith(DOMAIN_PREFIX) and rel not in seen:
+    if rel.startswith(DEP_PREFIXES) and rel not in seen:
         seen.add(rel)
         print(rel)
 PY
 }
 
-# Look up the git URL for a domain path in mandi_domain.
+# Look up the git URL for a mandi dep path (domain OR common).
 # Prints the URL (or nothing + exit 0) for the first matching entry.
-repos_domain_url() {
-  local domain_path="$1"
-  # B2 (2026-07-13): resolve a domain's clone URL — PREFER the domain's OWN
-  # mandi/domain/<pkg>/mandi.json `url` (self-describing, toward the
-  # repos.json-as-bootstrap end state), FALL BACK to the repos.json
-  # mandi_domain registry (for domains whose mandi.json has no url yet — e.g.
-  # bharti until S2 backfills it — or no mandi.json at all — e.g. duta). Prints
-  # nothing (caller fails loud) if neither source has a url.
-  python3 - "$GYANAM_DIR" "$REPOS_JSON" "$domain_path" <<'PY'
+repos_dep_url() {
+  local dep_path="$1"
+  # B2 (2026-07-13): resolve a dep's clone URL — PREFER the dep's OWN
+  # mandi/{domain,common}/<pkg>/mandi.json `repo` (self-describing, toward the
+  # repos.json-as-bootstrap end state), FALL BACK to the repos.json registry
+  # (for deps whose mandi.json has no url yet — e.g. bharti until S2 backfills it,
+  # or arthik which has no `repo` field — or no mandi.json at all — e.g. duta).
+  # B4 (2026-07-17): the registry fallback now searches BOTH mandi_domain AND
+  # mandi_common — a common dep (arthik) lives in the mandi_common bucket, and
+  # the single-bucket lookup would have returned nothing → caller fails loud on a
+  # dep that IS registered, just in the sibling bucket. Prints nothing (caller
+  # fails loud) if neither source has a url.
+  python3 - "$GYANAM_DIR" "$REPOS_JSON" "$dep_path" <<'PY'
 import json, os, sys
-gyanam_dir, repos_json, domain_path = sys.argv[1], sys.argv[2], sys.argv[3]
+gyanam_dir, repos_json, dep_path = sys.argv[1], sys.argv[2], sys.argv[3]
 # 1. own mandi.json `repo` (the canonical url field in mandi.json — preferred)
-mj = os.path.join(gyanam_dir, domain_path, "mandi.json")
+mj = os.path.join(gyanam_dir, dep_path, "mandi.json")
 if os.path.isfile(mj):
     try:
         with open(mj) as f:
@@ -183,15 +197,16 @@ if os.path.isfile(mj):
             print(url); sys.exit(0)
     except (json.JSONDecodeError, OSError):
         pass
-# 2. repos.json mandi_domain registry (fallback)
+# 2. repos.json registry fallback — search BOTH domain + common buckets (B4)
 with open(repos_json) as f:
     data = json.load(f)
-for entry in data.get("mandi_domain", []):
-    if isinstance(entry, dict) and entry.get("path") == domain_path:
-        url = entry.get("url", "")
-        if url:
-            print(url)
-        break
+for bucket in ("mandi_domain", "mandi_common"):
+    for entry in data.get(bucket, []):
+        if isinstance(entry, dict) and entry.get("path") == dep_path:
+            url = entry.get("url", "")
+            if url:
+                print(url)
+            sys.exit(0)
 PY
 }
 
@@ -336,79 +351,95 @@ layers_prefix_match() {
   [[ "$img" == "${base%]},"* ]]
 }
 
-# ── Phase 0: verify each app's derived domains resolve in the registry ─────
-# B1 (2026-07-13): the domain set is now DERIVED from apps/<app>/packages.json
-# (see repos_app_domains), so the old app_to_domains-vs-packages.json drift
+# ── Phase 0: verify each app's derived deps resolve in the registry ────────
+# B1 (2026-07-13): the dep set is now DERIVED from apps/<app>/packages.json
+# (see repos_app_deps), so the old app_to_domains-vs-packages.json drift
 # check is retired — the two can no longer disagree (there is only one source).
-# What SURVIVES is the mandi_domain registry-completeness check (the OTHER half
-# of the 2026-07-02 outage: flow had no registry entry, so even a correct
-# mapping could not clone it). Verify BEFORE any work: every domain each app
-# derives from packages.json must resolve to a URL in mandi_domain — fail loud
-# on any gap. Apps with no generated packages.json fail loud here (cannot
-# derive → cannot deploy), matching the Phase-1b derive gate.
+# What SURVIVES is the registry-completeness check (the OTHER half of the
+# 2026-07-02 outage: flow had no registry entry, so even a correct mapping could
+# not clone it). Verify BEFORE any work: every dep each app derives from
+# packages.json must resolve to a URL — fail loud on any gap, HERE, not after a
+# wasted framework build. B4 (2026-07-17): now covers BOTH domain + common deps
+# (matching the widened Phase-1b sync) so a missing common URL aborts in Phase 0.
+# Apps with no generated packages.json fail loud here (cannot derive → cannot
+# deploy), matching the Phase-1b derive gate.
 if (( ${#APPS[@]} > 0 )); then
-  sect "Phase 0: Verify derived domains resolve in mandi_domain registry"
+  sect "Phase 0: Verify each app's derived deps resolve in the registry"
   verify_args=()
   for app in "${APPS[@]}"; do verify_args+=(--app "$app"); done
   if python3 "$SCRIPT_DIR/verify-app-domains.py" --gyanam "$GYANAM_DIR" "${verify_args[@]}"; then
-    log "derived domains verified (all resolve in mandi_domain registry)"
+    log "derived deps verified (all domain + common deps resolve to a URL)"
   else
-    err "a requested app's derived domain has no mandi_domain URL (or has no packages.json) — fix repos.json mandi_domain / regenerate packages.json before deploying"
+    err "a requested app's derived dep has no registry URL (or the app has no packages.json) — fix repos.json (mandi_domain/mandi_common) / mandi.json url / regenerate packages.json before deploying"
     exit 1
   fi
 fi
 
 # ── Phase 1: repo sync ─────────────────────────────────────────────────────
 if (( PULL )); then
-  sect "Phase 1: Sync framework + common repos"
-  pull_bucket framework
-  pull_bucket mandi_common
+  sect "Phase 1: Sync framework repos"
+  pull_bucket framework       # universal substrate — always blanket-synced
 
   if (( ${#APPS[@]} > 0 )); then
-    sect "Phase 1b: Sync domain repos for requested apps"
-    local_domains=()
+    # B4 (2026-07-17): with --app, sync ONLY each app's DECLARED dep closure
+    # (domain + common), derived from its packages.json — NOT the whole
+    # mandi_common bucket. The old `pull_bucket mandi_common` above pulled all 14
+    # common repos unconditionally, then the post-Phase-1 gate aborted the entire
+    # deploy if ANY of those 14 couldn't fast-forward — even for an app that
+    # imports ZERO common (sanchalak01: needs {sanchalak}, gated on 5 dirty
+    # common siblings it never touches → the exact blocker that stopped its
+    # re-deploy). Reducing the sync SET to the app's real closure fixes that
+    # WITHOUT weakening the staleness gate: every repo IN the closure still must
+    # fast-forward or the deploy aborts. Precedent: Bazel `deps` / pnpm --filter /
+    # Nx affected-graph — sync a target's declared closure, not the monorepo.
+    sect "Phase 1b: Sync each app's declared deps (domain + common)"
+    local_deps=()
     for app in "${APPS[@]}"; do
       # bash-3.2-compatible array read (macOS host bash is 3.2.57; `mapfile`
       # is bash-4+). The while-read-into-array idiom is the portable equivalent.
-      # B1: repos_app_domains DERIVES from packages.json + exits non-zero (2) if
-      # the app has no generated packages.json — capture that so we FAIL LOUD
-      # (a deploy that can't derive an app's domains must abort, not silently
-      # clone zero). Run it separately first so its exit code is observable
-      # (a bare process-substitution swallows the exit under `set -e`).
-      if ! _derived="$(repos_app_domains "$app")"; then
-        err "cannot derive domain set for '$app' (no apps/$app/packages.json) — aborting BEFORE build"
+      # repos_app_deps DERIVES from packages.json + exits non-zero (2) if the app
+      # has no generated packages.json — capture that so we FAIL LOUD (a deploy
+      # that can't derive an app's deps must abort, not silently clone zero). Run
+      # it separately first so its exit code is observable (a bare
+      # process-substitution swallows the exit under `set -e`).
+      if ! _derived="$(repos_app_deps "$app")"; then
+        err "cannot derive dep set for '$app' (no apps/$app/packages.json) — aborting BEFORE build"
         exit 1
       fi
-      app_doms=()
-      while IFS= read -r _line; do [[ -n "$_line" ]] && app_doms+=("$_line"); done <<< "$_derived"
+      app_deps=()
+      while IFS= read -r _line; do [[ -n "$_line" ]] && app_deps+=("$_line"); done <<< "$_derived"
       # guard empty-array expansion under set -u (bash 3.2)
-      (( ${#app_doms[@]} > 0 )) && for d in "${app_doms[@]}"; do local_domains+=("$d"); done
+      (( ${#app_deps[@]} > 0 )) && for d in "${app_deps[@]}"; do local_deps+=("$d"); done
     done
     # dedupe (bash-3.2-compatible — see note above). Guard the empty-array
     # expansion: under `set -u`, bash 3.2 errors on "${arr[@]}" when arr is
     # empty (unbound variable), so only dedupe when there's something to read.
-    if (( ${#local_domains[@]} > 0 )); then
+    if (( ${#local_deps[@]} > 0 )); then
       _deduped=()
       while IFS= read -r _line; do _deduped+=("$_line"); done \
-        < <(printf "%s\n" "${local_domains[@]}" | sort -u)
-      local_domains=("${_deduped[@]}")
+        < <(printf "%s\n" "${local_deps[@]}" | sort -u)
+      local_deps=("${_deduped[@]}")
     fi
 
-    if (( ${#local_domains[@]} == 0 )); then
-      warn "no domain repos needed for requested apps (framework-only)"
+    if (( ${#local_deps[@]} == 0 )); then
+      warn "no domain/common repos needed for requested apps (framework-only)"
     else
-      for dom in "${local_domains[@]}"; do
-        url=$(repos_domain_url "$dom")
-        # B1 registry-URL gate (PRESERVED from verify-app-domains.py's 2nd job):
-        # a derived domain with no mandi_domain registry URL can NEVER be cloned
-        # — the build would then reference a package that isn't on disk. This was
-        # the OTHER half of the 2026-07-02 flow outage (flow had no registry
-        # entry). FAIL LOUD, not warn+continue — abort BEFORE building.
-        [[ -z "$url" ]] && { err "domain '$dom' (needed per apps/*/packages.json) has NO url in repos.json mandi_domain registry — cannot clone; aborting BEFORE build"; exit 1; }
-        clone_or_pull "$dom" "$url" || true   # see pull_bucket note; gate below
+      for dep in "${local_deps[@]}"; do
+        url=$(repos_dep_url "$dep")
+        # Registry-URL gate (PRESERVED from verify-app-domains.py's 2nd job):
+        # a derived dep with no registry URL can NEVER be cloned — the build would
+        # then reference a package that isn't on disk. This was the OTHER half of
+        # the 2026-07-02 flow outage (flow had no registry entry). FAIL LOUD, not
+        # warn+continue — abort BEFORE building.
+        [[ -z "$url" ]] && { err "dep '$dep' (needed per apps/*/packages.json) has NO url in repos.json (mandi_domain/mandi_common) or its mandi.json — cannot clone; aborting BEFORE build"; exit 1; }
+        clone_or_pull "$dep" "$url" || true   # see pull_bucket note; gate below
       done
-      log "domain repos: ${#local_domains[@]} synced (derived from packages.json)"
+      log "app deps: ${#local_deps[@]} synced (derived from packages.json — domain + common)"
     fi
+  else
+    # No --app (bare --pull-only): legit full refresh of ALL common repos.
+    sect "Phase 1b: Sync all common repos (no --app — full refresh)"
+    pull_bucket mandi_common
   fi
 
   # ── Post-Phase-1 gate: abort BEFORE building on stale/unverified source ────
