@@ -59,6 +59,84 @@ warn() { echo -e "${Y}[!]${N} $*"; }
 err()  { echo -e "${R}[✗]${N} $*" >&2; }
 sect() { echo; echo -e "${B}${C}══════════════════════════════════════════${N}"; echo -e "${B}${C}  $*${N}"; echo -e "${B}${C}══════════════════════════════════════════${N}"; }
 
+# ── cleanup_stale_compose_watch — kill orphaned `compose watch` for ONE app ──
+# A dev deploy spawns `docker compose ... watch &` (see Phase-3 dev bring-up) but
+# never reaped it, so successive `--dev` deploys stacked watchers. Four orphaned
+# watchers accumulated on sanchalak (2026-07-17), fighting to sync the same files
+# → clobbered a live host edit + drove mtime churn (part of the reload-storm
+# story). This reaps THIS app's stale watchers before spawning a fresh one, so
+# the env can't rot from accumulated watchers (class-prevention).
+#
+# Precise per-app targeting: the watcher's argv is `docker compose -f
+# compose.dev.yml [-f compose.dev.override.yml] watch` — it carries the RELATIVE
+# compose paths, NOT the app name (compose derives the project from the launch
+# cwd). So matching on the argv alone cannot tell one app's watcher from
+# another's, and a blanket `pkill -f "compose.*watch"` would kill EVERY app's
+# watcher. We disambiguate by the process's working directory (= apps/<app>),
+# read via `lsof -d cwd`. Kills only watchers whose cwd is this app's dir.
+#
+# Fail-loud: if a matched watcher refuses to die, error + return non-zero so the
+# caller aborts (never silently leave an orphan — [[no-silent-try-except]]).
+# Arg: $1 = absolute app dir (apps/<app>).
+cleanup_stale_compose_watch() {
+  local target_dir="$1"
+  command -v lsof >/dev/null 2>&1 || { warn "lsof not found — cannot reap stale compose watchers for $target_dir"; return 0; }
+
+  # Canonicalize to the resolved real path: lsof always reports a process's cwd
+  # with symlinks resolved (e.g. macOS maps /var → /private/var), so the target
+  # must be resolved the same way or the string compare silently never matches
+  # and the reap becomes a no-op. `cd … && pwd -P` is the portable realpath.
+  target_dir="$(cd "$target_dir" 2>/dev/null && pwd -P)" || {
+    warn "cannot resolve app dir for watcher cleanup: $1"; return 0; }
+
+  # PIDs of `compose ... watch` processes whose cwd is THIS app's dir. The
+  # watcher argv carries only relative compose paths (not the app name), so the
+  # cwd is the sole reliable per-app discriminator (compose derives its project
+  # from the launch dir). Emits the matching PIDs, one per line.
+  _watchers_for_dir() {
+    local p c
+    for p in $(pgrep -f 'compose .*watch' 2>/dev/null || true); do
+      c="$(lsof -a -p "$p" -d cwd -Fn 2>/dev/null | grep '^n' | sed 's/^n//')"
+      [[ "$c" == "$1" ]] && echo "$p"
+    done
+  }
+
+  local pids
+  pids="$(_watchers_for_dir "$target_dir")"
+  [[ -n "$pids" ]] || return 0   # nothing for this app → observable no-op
+
+  local pid
+  for pid in $pids; do
+    warn "reaping stale compose watcher (pid $pid, cwd $target_dir) before re-deploy"
+    kill "$pid" 2>/dev/null || true   # SIGTERM — let compose tear down gracefully
+  done
+
+  # Poll until dead rather than trust a fixed sleep: docker-compose forwards
+  # SIGTERM and tears down asynchronously, so graceful exit can take several
+  # seconds (a fixed `sleep 2` races the teardown and mis-reports a live pid).
+  # Bounded wait, then escalate to SIGKILL, then a final hard check. Fail-loud if
+  # anything survives — never stack a new watcher on an un-killable orphan.
+  local waited=0
+  while [[ -n "$(_watchers_for_dir "$target_dir")" && "$waited" -lt 10 ]]; do
+    sleep 1
+    waited=$((waited + 1))
+  done
+
+  local leftover
+  leftover="$(_watchers_for_dir "$target_dir")"
+  if [[ -n "$leftover" ]]; then
+    warn "compose watcher(s) ($leftover) ignored SIGTERM after ${waited}s — escalating to SIGKILL"
+    kill -9 $leftover 2>/dev/null || true
+    sleep 1
+    leftover="$(_watchers_for_dir "$target_dir")"
+    if [[ -n "$leftover" ]]; then
+      err "stale compose watcher(s) ($leftover, cwd $target_dir) survived SIGKILL — refusing to stack another watcher"
+      return 1
+    fi
+  fi
+  return 0
+}
+
 # ── Arg parsing ────────────────────────────────────────────────────────────
 MODE="dev"           # dev | staging | prod
 APPS=()              # list of apps to deploy
@@ -762,6 +840,12 @@ if (( DEPLOY )) && (( ${#APPS[@]} > 0 )); then
       # activate_dev_watch_with_reinstall (sister PR in ssnukala/lochan).
       if [[ "$MODE" == "dev" ]]; then
         mkdir -p log
+        # Reap any stale watcher for THIS app before spawning a fresh one, so
+        # deploys can't stack orphaned watchers that fight to sync the same files
+        # (the 4-orphan accumulation that destabilized sanchalak, 2026-07-17).
+        # Fail-loud: a survivor aborts the subshell (|| exit 1) rather than
+        # stacking another watcher on top of one we couldn't kill.
+        cleanup_stale_compose_watch "$app_dir" || exit 1
         docker compose "${compose_args[@]}" watch >log/compose-watch.log 2>&1 &
         sleep 8   # let the initial sync land the domain/common packages
         docker compose "${compose_args[@]}" restart backend \
