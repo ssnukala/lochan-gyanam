@@ -58,4 +58,16 @@ RUN pip install --no-cache-dir /build/daksh[dev] \
 
 # Retain all the env + ports + cmd from the base image.
 EXPOSE 5001 9500
-CMD ["uvicorn", "src.app:app", "--host", "0.0.0.0", "--port", "5001", "--reload"]
+# --reload watches source only, never the compiled-bytecode churn it creates.
+# Without --reload-dir, WatchFiles walks the entire cwd recursively — including
+# __pycache__/*.pyc. On a bind-mount dev container, one backend edit writes a
+# .pyc, which the watcher sees as a change, which triggers a reload, which
+# writes more .pyc — a self-sustaining reload-storm (measured 25 reloads →
+# backend crash-cycle on sanchalak, 2026-07-17). Scope the watch to the two
+# real source roots and exclude bytecode so an edit reloads exactly once:
+#   /app/src      — framework app entry (WORKDIR=/app, src.app:app = /app/src/app.py)
+#   /app/packages — domain + framework packages (bind-mounted in dev)
+# (uvicorn's own --reload-exclude docs prescribe exactly this for the .pyc case.)
+CMD ["uvicorn", "src.app:app", "--host", "0.0.0.0", "--port", "5001", \
+     "--reload", "--reload-dir", "/app/src", "--reload-dir", "/app/packages", \
+     "--reload-exclude", "*.pyc", "--reload-exclude", "__pycache__/*"]

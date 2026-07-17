@@ -115,4 +115,14 @@ ENV PYTHONDONTWRITEBYTECODE=0
 ENV LOCHAN_FWTEST_MODE=hmr
 ENV LOCHAN_TEST_MODE=fwtest
 EXPOSE 5001
-CMD ["uvicorn", "src.app:app", "--host", "0.0.0.0", "--port", "5001", "--reload"]
+# Scope --reload to the two real source roots and exclude bytecode. This image
+# is the MOST exposed to the .pyc reload-storm: it sets PYTHONDONTWRITEBYTECODE=0
+# (bytecode ON) with --reload, so without an exclude every source edit writes a
+# .pyc that the watcher sees → reload → more .pyc → storm (25 reloads →
+# crash-cycle, sanchalak 2026-07-17). The exclude keeps HMR fast (bytecode still
+# cached) while breaking the write→reload feedback loop.
+#   /app/src      — framework app entry (WORKDIR=/app, src.app:app = /app/src/app.py)
+#   /app/packages — domain + framework packages (bind-mounted for live debug)
+CMD ["uvicorn", "src.app:app", "--host", "0.0.0.0", "--port", "5001", \
+     "--reload", "--reload-dir", "/app/src", "--reload-dir", "/app/packages", \
+     "--reload-exclude", "*.pyc", "--reload-exclude", "__pycache__/*"]
