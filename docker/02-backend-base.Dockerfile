@@ -199,4 +199,15 @@ ENV PYTHONUNBUFFERED=1
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONPATH=/app
 EXPOSE 5001
-CMD ["uvicorn", "src.app:app", "--host", "0.0.0.0", "--port", "5001", "--reload"]
+# Scope --reload to the two real source roots and exclude bytecode, so a source
+# edit reloads exactly once instead of self-sustaining a .pyc-write→reload storm
+# (measured 25 reloads → backend crash-cycle on sanchalak, 2026-07-17). Without
+# --reload-dir, WatchFiles walks the entire cwd recursively incl. __pycache__.
+#   /app/src      — framework app entry (WORKDIR=/app, src.app:app = /app/src/app.py)
+#   /app/packages — domain + framework packages (bind-mounted in dev)
+# NB: this base sets PYTHONDONTWRITEBYTECODE=1 (no .pyc written) so the storm's
+# fuel is absent here by env; the narrow watch + exclude is defense-in-depth and
+# a pure win (a downstream image that flips bytecode on can't regress the class).
+CMD ["uvicorn", "src.app:app", "--host", "0.0.0.0", "--port", "5001", \
+     "--reload", "--reload-dir", "/app/src", "--reload-dir", "/app/packages", \
+     "--reload-exclude", "*.pyc", "--reload-exclude", "__pycache__/*"]
