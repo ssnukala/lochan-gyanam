@@ -575,14 +575,28 @@ if (( BUILD )); then
   # silently shipping unstamped images is the bug this fixes. --skip-stamp
   # is the loud, explicit escape hatch (symmetric with --skip-pkg-builds).
   if (( STAMP )); then
-    DAKSH_CLI="$GYANAM_DIR/framework/lochan/packages/daksh/daksh-cli"
     echo -n "  stamp package provenance (daksh stamp-meta --all) ... "
-    if [[ -x "$DAKSH_CLI" ]] && _stamp_out="$("$DAKSH_CLI" stamp-meta --all --gyanam-root "$GYANAM_DIR" 2>&1)"; then
-      echo "ok"
-      log "$(printf '%s\n' "$_stamp_out" | grep -m1 '^stamped ' || echo 'provenance stamped')"
+    # CONTAINERIZED daksh (2026-07-18, founder-ratified "A" — zero host deps):
+    # run stamp-meta FROM the framework base image (which bakes daksh + all its
+    # deps — passlib/aadhaar/etc.) rather than a host venv. The host then needs
+    # ONLY docker + git; no `daksh dev-setup`/venv-bootstrap per server (the
+    # band-aid that broke on a missing `passlib` transitive dep, 2026-07-18).
+    # GYANAM_DIR=/gyanam points the in-container daksh at the bind-mounted source
+    # (find_gyanam_root honors GYANAM_DIR); the mount lets it write __pkg_meta__.py
+    # back to the host tree. Uses the same base image the build itself consumes —
+    # no separate tool image. Requires lochan-backend-base:latest to exist (from a
+    # prior build; a truly-fresh host runs one `docker build` of the base first).
+    # Precedent: the standard "run the tool from its image" pattern (golangci-lint,
+    # hadolint, pre-commit language:docker_image, Bazel containerized toolchains).
+    _STAMP_IMAGE="lochan-backend-base:latest"
+    if docker image inspect "$_STAMP_IMAGE" >/dev/null 2>&1 \
+       && _stamp_out="$(docker run --rm -e GYANAM_DIR=/gyanam -v "$GYANAM_DIR":/gyanam -w /gyanam \
+            --entrypoint python "$_STAMP_IMAGE" -m daksh stamp-meta --all 2>&1)"; then
+      echo "ok (containerized)"
+      log "$(printf '%s\n' "$_stamp_out" | grep -m1 '^stamped ' || echo 'provenance stamped (containerized daksh)')"
     else
       echo "FAILED"
-      err "stamp-meta failed (or daksh-cli not runnable at $DAKSH_CLI) — refusing to build UNSTAMPED images (every metrics envelope would report build.stamped:false; pass --skip-stamp to bypass loudly)"
+      err "stamp-meta failed — refusing to build UNSTAMPED images (every metrics envelope would report build.stamped:false; pass --skip-stamp to bypass loudly). Ran daksh via container '$_STAMP_IMAGE' (zero-host-dep model); if the base image is absent, build it once first (docker build -f docker/02-backend-base.Dockerfile)."
       [[ -n "${_stamp_out:-}" ]] && printf '%s\n' "$_stamp_out" | tail -20 >&2
       exit 1
     fi
