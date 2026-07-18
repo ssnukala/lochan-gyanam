@@ -79,7 +79,38 @@ RUN python3 /build/install-framework-packages.py /build/packages --install
 # ONLY framework artifacts are pre-seeded here (domain artifacts live in
 # ``embed-artifacts/domain/`` and are layered per-app in Dockerfile.backend) —
 # copying domain ones into the base would create orphan package dirs.
-COPY framework/lochan/data/embed-artifacts/framework/ /usr/local/lib/python3.13/site-packages/
+#
+# §FW10c MODEL-KEYED (S4, 2026-07-18) — the committed tree is now keyed by
+# embedding model (``embed-artifacts/<model>/<tier>/<pkg>/``), matching the
+# runtime write path that ``artifact_io.artifact_path(pkg_dir, model)`` has
+# ALWAYS produced. This COPY selects the SAME model the precompute block below
+# declares, so the seeded path and precompute's model-AWARE skip-if-present
+# check agree BY CONSTRUCTION.
+#
+# Why that matters (the bug this closes): the pre-FW10c COPY was model-BLIND —
+# it seeded gemini artifacts at the model-less ``framework/<pkg>/`` path while
+# the skip-check looked under ``<pkg>/data/embed-artifacts/<model>/``. Aligned
+# only by luck while gemini was the sole model; the moment the runtime model
+# flipped to nomic EVERY framework package would miss the skip and re-embed all
+# ~13k phrases live — the exact quota-hammer §PRESEED exists to prevent.
+#
+# NOTE: ``COPY`` cannot expand an ARG mid-path in this position, so the model
+# segment is a literal that MUST be kept in sync with EMBED_BUILD_MODEL below.
+# A mismatch is not silent: COPY of a non-existent path fails the base build
+# outright. (The janch check ``embed_artifact_package_exists`` validates the
+# committed tree's package identity across every <model> subtree, but does NOT
+# assert this literal matches EMBED_BUILD_MODEL — the build-time COPY failure
+# is what catches drift. Flipping the model = change BOTH lines together.)
+COPY framework/lochan/data/embed-artifacts/gemini-embedding-001/framework/ /usr/local/lib/python3.13/site-packages/
+
+# Patent-coverage status snapshot (the FP11 demo-health source of truth).
+# muulam.api.patent_coverage._resolve_status_path() walks UP from
+# site-packages/muulam/api/ looking for a ``data/patent-coverage-status.json``;
+# baking it at site-packages/data/ is found when the walk hits site-packages/.
+# Without this the demo-health aggregator reads no claim matrix → every panel
+# status="UNKNOWN" → 0/8 healthy (the pre-existing Q7 metrics-P0). This is the
+# source fix: bake the committed repo file into the image, not patch the reader.
+COPY framework/lochan/data/patent-coverage-status.json /usr/local/lib/python3.13/site-packages/data/patent-coverage-status.json
 
 ARG EMBED_BUILD_MODEL=gemini-embedding-001
 ARG EMBED_BUILD_DIM=768
