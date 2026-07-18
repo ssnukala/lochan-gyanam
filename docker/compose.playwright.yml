@@ -161,6 +161,27 @@ services:
         cat /screenshots/render_check_result.json 2>/dev/null | head -40
       "
 
+  # Single-URL capture (`daksh screenshot <app> --url <path>`). Reuses the
+  # screenshots sidecar image/network/storageState mount; runs the
+  # screenshot-url Playwright PROJECT which reads SCREENSHOT_URL (injected by
+  # daksh via `run -e`, not declared here — a runtime-only flag, same pattern
+  # as render-check's RENDER_SCOPE) and writes ONE full-page PNG to the
+  # /screenshots bind-mount. The sidecar-mode replacement for the phantom
+  # build/cli/screenshot-url.sh (S0 ruling Q-S1-item4-gap#1 = A). `|| true`
+  # keeps a per-page navigation failure from erroring the sidecar before the
+  # daksh result mapping runs (same as the screenshot/render-check paths).
+  screenshot-url:
+    extends:
+      service: playwright-screenshots
+    command: >
+      sh -c "
+        echo '[playwright-sidecar] Single-URL capture starting: '$$SCREENSHOT_URL;
+        echo '[playwright-sidecar] BASE_URL = '$$BASE_URL;
+        npx playwright test --project=screenshot-url --config=/tests/playwright.config.ts || true;
+        echo '[playwright-sidecar] Single-URL capture complete. Output at /screenshots/.';
+        ls -la /screenshots/ | head -20
+      "
+
 networks:
   # External network reference — created by the parent app's compose.yml.
   # Pattern matches compose.test.yml + Docker's auto-naming convention:
