@@ -30,7 +30,13 @@
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
-DAKSH="${DAKSH:-$REPO_ROOT/framework/lochan/packages/daksh/daksh-cli}"
+# Route daksh through the shared shim (host venv if present, else containerized —
+# the server has no venv by design). The shim exits 86 = "daksh could not run"
+# (distinct from any daksh verdict), which _rpc below turns into a LOUD infra
+# abort instead of feeding a crash's stderr into jq as a false "did not reconcile"
+# verdict — the exact misdirection this gate's `2>&1`-into-value pattern caused.
+DAKSH="${DAKSH:-$REPO_ROOT/util/scripts/daksh-docker}"
+readonly EX_DAKSH_COULDNT_RUN=86
 APP=""
 BATTERY="$REPO_ROOT/util/scripts/build/acceptance_battery.json"
 as_args=()
@@ -52,9 +58,20 @@ command -v jq >/dev/null || { echo "✗ jq required" >&2; exit 2; }
 # _rpc <tool> <args-json> — one deterministic MCP sync tool call (mirrors the
 # governed-metric gate's transport so both gates unwrap identically).
 _rpc() {
-  "$DAKSH" api "$APP" POST /api/jharokha/mcp/rpc \
+  local out rc
+  out="$("$DAKSH" api "$APP" POST /api/jharokha/mcp/rpc \
     "$(printf '{"name":"%s","arguments":%s}' "$1" "$2")" \
-    --format json ${as_args[@]+"${as_args[@]}"} 2>&1
+    --format json ${as_args[@]+"${as_args[@]}"} 2>&1)"
+  rc=$?
+  # crash≠verdict: daksh-couldn't-run must NOT flow downstream as a response for
+  # jq to (mis)parse into a false reconcile failure. Abort loud with the infra
+  # exit (2), never let a crash masquerade as a semantic verdict.
+  if [ "$rc" -eq "$EX_DAKSH_COULDNT_RUN" ]; then
+    echo "✗ daksh could not run (exit $rc) — acceptance battery could NOT execute; this is an infra failure, NOT a metric-reconcile failure." >&2
+    printf '%s\n' "$out" | tail -5 >&2
+    exit 2
+  fi
+  printf '%s' "$out"
 }
 # _mcp_result <tool> <args-json> — the unwrapped tool result object.
 _mcp_result() {
@@ -68,10 +85,19 @@ _mcp_result() {
 # tk_metric_query). Returns the numeric summary.value or empty.
 _chat_summary_value() {
   local dom="$1" met="$2"
-  local resp
-  resp="$("$DAKSH" api "$APP" POST /api/ai/chat \
+  local resp rc
+  # The chat door drives shared-ollama → needs the shared-ai network so the
+  # containerized shim can resolve the ollama service by name (host net can't).
+  resp="$(DAKSH_DOCKER_NETWORK=shared-ai "$DAKSH" api "$APP" POST /api/ai/chat \
     "$(printf '{"message":"what is %s for %s"}' "$met" "$dom")" \
     --format json ${as_args[@]+"${as_args[@]}"} 2>&1)"
+  rc=$?
+  # same crash≠verdict guard as _rpc: a daksh crash on the chat door must not
+  # surface as a phantom parity value.
+  if [ "$rc" -eq "$EX_DAKSH_COULDNT_RUN" ]; then
+    echo "✗ daksh could not run (exit $rc) on the chat door — infra failure, not a parity miss." >&2
+    exit 2
+  fi
   printf '%s' "$resp" | jq -r '
     .. | objects | select(has("summary")) | .summary.value? // empty' 2>/dev/null | head -1
 }

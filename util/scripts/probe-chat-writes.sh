@@ -27,7 +27,7 @@
 set -euo pipefail
 
 REPO="/Users/srinivasnukala/Dropbox/Sites/docker/gyanam"
-CLI="framework/lochan/packages/daksh/daksh-cli"
+CLI="util/scripts/daksh-docker"  # shared shim: host venv or containerized (server has no venv)
 APP="${1:-fwprod01}"
 USER_AUTH="${2:-srinivas@lochan.ai:B@jarangaBali}"
 RUN_LABEL="${3:-}"

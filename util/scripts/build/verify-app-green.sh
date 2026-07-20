@@ -50,7 +50,7 @@ set -uo pipefail   # NOT -e: we want to run every gate + aggregate, not bail on 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 GYANAM_DIR="$(cd "$SCRIPT_DIR/../../.." && pwd)"
 FRAMEWORK_DIR="$GYANAM_DIR/framework/lochan"
-DAKSH_CLI="$FRAMEWORK_DIR/packages/daksh/daksh-cli"
+DAKSH_CLI="$GYANAM_DIR/util/scripts/daksh-docker"  # shared shim: host venv or containerized (server has no venv)
 VENV_ACTIVATE="$FRAMEWORK_DIR/.venv/bin/activate"
 
 # ── Arg parsing ──

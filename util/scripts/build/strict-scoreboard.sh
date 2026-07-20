@@ -22,7 +22,7 @@ set -euo pipefail
 
 GYANAM_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
 VENV="$GYANAM_ROOT/framework/lochan/.venv/bin/activate"
-DAKSH="$GYANAM_ROOT/framework/lochan/packages/daksh/daksh-cli"
+DAKSH="$GYANAM_ROOT/util/scripts/daksh-docker"  # shared shim: host venv or containerized (server has no venv)
 
 MODE="table"; PKG=""
 for arg in "$@"; do

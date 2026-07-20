@@ -40,7 +40,7 @@ set -euo pipefail
 # the sibling probes (probe-chat-writes.sh / probe-show-users-perf.sh), which pin
 # the same REPO root. Single dev machine; the path is stable.
 REPO="/Users/srinivasnukala/Dropbox/Sites/docker/gyanam"
-CLI="framework/lochan/packages/daksh/daksh-cli"
+CLI="util/scripts/daksh-docker"  # shared shim: host venv or containerized (server has no venv)
 TARGET="${1:---all}"
 RUN_LABEL="${2:-}"
 cd "$REPO"

@@ -588,15 +588,18 @@ if (( BUILD )); then
     # prior build; a truly-fresh host runs one `docker build` of the base first).
     # Precedent: the standard "run the tool from its image" pattern (golangci-lint,
     # hadolint, pre-commit language:docker_image, Bazel containerized toolchains).
-    _STAMP_IMAGE="lochan-backend-base:latest"
-    if docker image inspect "$_STAMP_IMAGE" >/dev/null 2>&1 \
-       && _stamp_out="$(docker run --rm -e GYANAM_DIR=/gyanam -v "$GYANAM_DIR":/gyanam -w /gyanam \
-            --entrypoint python "$_STAMP_IMAGE" -m daksh stamp-meta --all 2>&1)"; then
+    # Route through the shared daksh-docker shim — the ONE canonical containerized
+    # daksh path (PR #91 established this pattern inline HERE for stamp-meta; the
+    # shim generalizes it so all ~16 host callers share it, not just this one).
+    # The shim prefers a host venv when present (dev machines) and containers on a
+    # venv-less host (the server); a missing base image surfaces as its exit 86.
+    GYANAM_DIR="$GYANAM_DIR" _stamp_out="$("$GYANAM_DIR/util/scripts/daksh-docker" stamp-meta --all 2>&1)"; _stamp_rc=$?
+    if [[ "$_stamp_rc" -eq 0 ]]; then
       echo "ok (containerized)"
       log "$(printf '%s\n' "$_stamp_out" | grep -m1 '^stamped ' || echo 'provenance stamped (containerized daksh)')"
     else
       echo "FAILED"
-      err "stamp-meta failed — refusing to build UNSTAMPED images (every metrics envelope would report build.stamped:false; pass --skip-stamp to bypass loudly). Ran daksh via container '$_STAMP_IMAGE' (zero-host-dep model); if the base image is absent, build it once first (docker build -f docker/02-backend-base.Dockerfile)."
+      err "stamp-meta failed (daksh-docker exit $_stamp_rc) — refusing to build UNSTAMPED images (every metrics envelope would report build.stamped:false; pass --skip-stamp to bypass loudly). $([[ "$_stamp_rc" -eq 86 ]] && echo 'daksh could not run: no host venv AND no lochan-backend-base:latest — build the base once first (docker build -f docker/02-backend-base.Dockerfile).')"
       [[ -n "${_stamp_out:-}" ]] && printf '%s\n' "$_stamp_out" | tail -20 >&2
       exit 1
     fi

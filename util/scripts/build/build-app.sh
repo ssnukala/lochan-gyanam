@@ -56,7 +56,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # SCRIPT_DIR = <gyanam>/util/scripts/build; GYANAM_DIR = <gyanam> (3 up)
 GYANAM_DIR="$(cd "$SCRIPT_DIR/../../.." && pwd)"
 FRAMEWORK_DIR="$GYANAM_DIR/framework/lochan"
-DAKSH_CLI="$FRAMEWORK_DIR/packages/daksh/daksh-cli"
+DAKSH_CLI="$GYANAM_DIR/util/scripts/daksh-docker"  # shared shim: host venv or containerized (server has no venv)
 VENV_ACTIVATE="$FRAMEWORK_DIR/.venv/bin/activate"
 
 # ── Arg parsing ──
