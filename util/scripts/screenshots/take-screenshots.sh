@@ -265,7 +265,7 @@ echo "[4/6] Launching sidecar via canonical compose"
 # before every launch: sub-second, idempotent, removes the manual
 # "run daksh pw-login" step from the capture loop. Ordering pinned by
 # test-capture-run-sidecar-substrate.sh §L.13.
-DAKSH_CLI="$GYANAM_DIR/framework/lochan/packages/daksh/daksh-cli"
+DAKSH_CLI="$GYANAM_DIR/util/scripts/daksh-docker"  # shared shim: host venv or containerized (server has no venv)
 # Persona pass-through: forward --user/--password to daksh pw-login so the
 # storageState is minted for THAT persona (default = app .env SUPER_ADMIN_*).
 PW_LOGIN_ARGS=( pw-login "$APP" )
@@ -274,9 +274,18 @@ PW_LOGIN_ARGS=( pw-login "$APP" )
 if [[ -x "$DAKSH_CLI" ]]; then
   note "refreshing storageState.json via daksh pw-login $APP${PW_USER:+ --user $PW_USER} (§D7e self-heal)"
   if ! PW_LOGIN_OUT="$("$DAKSH_CLI" "${PW_LOGIN_ARGS[@]}" 2>&1)"; then
-    # Loud, not fatal: the authenticated spec fails visibly downstream and
-    # unauthenticated captures (patent demo pages) still have value.
-    note "pw-login FAILED — authenticated captures will abort:"
+    _pw_rc=$?
+    # crash≠verdict: exit 86 from the shim = daksh COULD NOT RUN (no host venv +
+    # no base image), which is NOT the same as "pw-login ran and auth failed".
+    # Name it distinctly so a venv-less/imageless host isn't misread as an auth
+    # failure (the class this whole lane fixes).
+    if [[ "$_pw_rc" -eq 86 ]]; then
+      note "pw-login could NOT RUN (daksh unavailable — no host venv AND no base image); authenticated captures will abort. This is infra, not an auth failure:"
+    else
+      # Loud, not fatal: the authenticated spec fails visibly downstream and
+      # unauthenticated captures (patent demo pages) still have value.
+      note "pw-login FAILED — authenticated captures will abort:"
+    fi
     note "  $(printf '%s' "$PW_LOGIN_OUT" | tail -1)"
   elif [[ -n "$PW_USER" ]]; then
     # storageState routing bridge: pw-login with an explicit --user writes a

@@ -37,7 +37,7 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 GYANAM_DIR="$(cd "${SCRIPT_DIR}/../.." && pwd)"
-DAKSH_CLI="${GYANAM_DIR}/framework/lochan/packages/daksh/daksh-cli"
+DAKSH_CLI="${GYANAM_DIR}/util/scripts/daksh-docker"  # shared shim: host venv or containerized (server has no venv)
 
 # ---- arg parsing ------------------------------------------------
 

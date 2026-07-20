@@ -64,8 +64,8 @@ fi
 command -v jq >/dev/null 2>&1 || { echo "  ✗ jq not found — the gate needs jq" >&2; exit 2; }
 
 GYANAM_DIR="${GYANAM_DIR:-/Users/srinivasnukala/Dropbox/Sites/docker/gyanam}"
-DAKSH="$GYANAM_DIR/framework/lochan/packages/daksh/daksh-cli"
-[[ -x "$DAKSH" ]] || DAKSH="daksh"
+DAKSH="$GYANAM_DIR/util/scripts/daksh-docker"  # shared shim: host venv or containerized (server has no venv)
+readonly EX_DAKSH_COULDNT_RUN=86
 PKG_JSON="$GYANAM_DIR/apps/$APP/packages.json"
 as_args=(); [[ -n "$PERSONA" ]] && as_args=(--as "$PERSONA")
 
@@ -73,10 +73,19 @@ echo "── Governed-metric gate: $APP ──"
 
 # _rpc <tool-name> <arguments-json> — one deterministic sync tool call.
 _rpc() {
-  local name="$1" args="$2"
-  "$DAKSH" api "$APP" POST /api/jharokha/mcp/rpc \
+  local name="$1" args="$2" out rc
+  out="$("$DAKSH" api "$APP" POST /api/jharokha/mcp/rpc \
     "$(printf '{"name":"%s","arguments":%s}' "$name" "$args")" \
-    --format json ${as_args[@]+"${as_args[@]}"} 2>&1
+    --format json ${as_args[@]+"${as_args[@]}"} 2>&1)"
+  rc=$?
+  # crash≠verdict: daksh-couldn't-run must abort loud as infra (2), never flow
+  # downstream as a response for _envelope/jq to misparse into a false gate verdict.
+  if [ "$rc" -eq "$EX_DAKSH_COULDNT_RUN" ]; then
+    echo "  ✗ daksh could not run (exit $rc) — the governed-metric gate could NOT execute; infra failure, NOT a metric-governance failure." >&2
+    printf '%s\n' "$out" | tail -5 >&2
+    exit 2
+  fi
+  printf '%s' "$out"
 }
 
 # _envelope <rpc-response> — unwrap to the tool's `result` object (metrics/summary/meta).

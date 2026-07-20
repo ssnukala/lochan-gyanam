@@ -33,7 +33,7 @@
 set -euo pipefail
 
 REPO="/Users/srinivasnukala/Dropbox/Sites/docker/gyanam"
-CLI="framework/lochan/packages/daksh/daksh-cli"
+CLI="util/scripts/daksh-docker"  # shared shim: host venv or containerized (server has no venv)
 APP="${1:-fwprod01}"
 RUN_LABEL="${2:-}"
 MODELS_LIMIT="${3:-12}"

@@ -23,7 +23,7 @@ set -euo pipefail
 APP="${1:-fwprod01}"
 GYANAM_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
 cd "$GYANAM_DIR"
-DAKSH_CLI="$GYANAM_DIR/framework/lochan/packages/daksh/daksh-cli"
+DAKSH_CLI="$GYANAM_DIR/util/scripts/daksh-docker"  # shared shim: host venv or containerized (server has no venv)
 STORAGE="$GYANAM_DIR/apps/$APP/storageState.json"
 FRONTEND_CTR="${APP}-frontend-1"
 BROWSE_HOST="${APP}-frontend-1"

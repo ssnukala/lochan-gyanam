@@ -1,0 +1,118 @@
+#!/usr/bin/env bash
+# daksh-docker — the ONE way util/scripts + scripts invoke the daksh CLI.
+#
+# Usage:  daksh-docker <subcommand> [args...]         # e.g. daksh-docker api longterm01 GET /health
+#         DAKSH=/path/to/daksh-docker  (callers set their DAKSH/DAKSH_CLI var to this)
+#
+# WHY THIS EXISTS — the host-invocation class (S0 root-caused 2026-07-19):
+#   The server has NO python venv BY DESIGN ("only docker+git" — the zero-host-dep
+#   model that PR #91 established). A bare host `daksh-cli <subcmd>` there dies with
+#     ModuleNotFoundError: No module named 'passlib'   (via aadhaar/std/crypto.py)
+#   BEFORE running anything. PR #91 fixed exactly ONE caller (stamp-meta in
+#   deploy-lochan.sh); every other host daksh-cli call — including the BINDING
+#   verify-app-green.sh 5-gate and take-screenshots.sh (the demo screenshots) —
+#   was still latently broken on any venv-less host. This shim fixes the CLASS in
+#   the shared consumer, not in 20 callers ([[idempotency-guard-belongs-in-shared-consumer]]).
+#
+#   The second half of the bug was WORSE than the crash: callers captured daksh's
+#   stderr as if it were a response, so a CRASH surfaced as a confident, FALSE
+#   semantic verdict ("a metric value did not reconcile to its raw read"). That
+#   misdiagnosis cost a full day. So this shim ALSO makes crash≠verdict loud:
+#   when daksh could-not-run, it exits EX_DAKSH_COULDNT_RUN (86) — a reserved code
+#   no daksh subcommand returns — so a caller can distinguish "the check ran and
+#   failed" from "the check could not run at all". Fail loud, never silent
+#   (@~/.claude/rules/no-silent-try-except.md).
+#
+# Precedent: the standard "run the tool from its own image" pattern —
+#   golangci-lint, hadolint, pre-commit language:docker_image, Bazel containerized
+#   toolchains all ship a thin wrapper that routes to a container when the host
+#   lacks the toolchain and runs native when it doesn't.
+
+set -euo pipefail
+
+# Reserved: "daksh could not even run" — NOT a subcommand verdict. Chosen 86
+# (sysexits-adjacent, well outside daksh's own 0/1/2) so a crash can never be
+# mistaken for a pass(0)/fail(1)/infra(2) verdict by a caller.
+readonly EX_DAKSH_COULDNT_RUN=86
+
+_err() { echo "daksh-docker: $*" >&2; }
+
+[ $# -ge 1 ] || { _err "usage: daksh-docker <subcommand> [args...]"; exit "$EX_DAKSH_COULDNT_RUN"; }
+SUBCMD="$1"
+
+# Resolve the gyanam root (honors GYANAM_DIR, else walk up to the tree holding repos.json).
+if [ -n "${GYANAM_DIR:-}" ]; then
+  ROOT="$GYANAM_DIR"
+else
+  ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+  while [ "$ROOT" != "/" ] && [ ! -f "$ROOT/repos.json" ]; do ROOT="$(dirname "$ROOT")"; done
+  [ -f "$ROOT/repos.json" ] || { _err "could not locate gyanam root (no repos.json above ${BASH_SOURCE[0]})"; exit "$EX_DAKSH_COULDNT_RUN"; }
+fi
+HOST_DAKSH="$ROOT/framework/lochan/packages/daksh/daksh-cli"
+
+# --- Per-subcommand container network -----------------------------------------
+# Not one network fits all (S0's explicit warning 2026-07-20 — verify per-subcmd).
+# The two PROVEN datapoints anchor the map:
+#   • `daksh api <app> GET /health` → S0 ran this with --network HOST and got 200.
+#     App-targeting HTTP reaches the published app port on the host net.
+#   • A call that must resolve the `shared-ollama` compose SERVICE by name (e.g. a
+#     chat turn that hits ollama) needs --network shared-ai — `host` cannot resolve
+#     a compose service name (Errno -2 Name or service not known).
+# The catch S0 flagged: a plain `api` call whose ENDPOINT internally drives chat
+# (POST /api/ai/chat) may ALSO need shared-ai — the subcommand alone can't tell.
+# So: default app-targeting subcmds to `host` (the proven case), and let a caller
+# that KNOWS its endpoint reaches ollama set DAKSH_DOCKER_NETWORK=shared-ai. The
+# override is the "verify per-subcmd" seam, not a guess baked into the map.
+_network_for() {
+  if [ -n "${DAKSH_DOCKER_NETWORK:-}" ]; then echo "$DAKSH_DOCKER_NETWORK"; return; fi
+  case "$1" in
+    # App-targeting HTTP — reach the app's published port on the host net (proven).
+    api|pw-login|screenshot) echo "host" ;;
+    # Resolves shared-ollama by service name — needs the shared-ai network.
+    chat)                    echo "shared-ai" ;;
+    # Pure build/analysis over the mounted tree — no network needed.
+    *)                       echo "none" ;;
+  esac
+}
+
+# --- Path 1: a WORKING host daksh (dev machines) — prefer it -----------------
+# "Working" = importable, not merely present. The whole bug is that the file
+# exists on the server but its imports fail; presence is not readiness. Probe the
+# real import chain so a broken host env falls through to the container instead of
+# reproducing the passlib crash.
+if [ -x "$HOST_DAKSH" ] && python3 -c 'import passlib' >/dev/null 2>&1; then
+  exec "$HOST_DAKSH" "$@"
+fi
+
+# --- Path 2: containerized daksh (server / venv-less host) --------------------
+IMAGE="${DAKSH_DOCKER_IMAGE:-lochan-backend-base:latest}"
+if ! docker image inspect "$IMAGE" >/dev/null 2>&1; then
+  _err "cannot run daksh: no host venv (import passlib failed) AND base image '$IMAGE' absent."
+  _err "build the base once:  docker build -f docker/02-backend-base.Dockerfile -t $IMAGE ."
+  exit "$EX_DAKSH_COULDNT_RUN"
+fi
+
+net="$(_network_for "$SUBCMD")"
+net_args=()
+[ "$net" != "none" ] && net_args=(--network "$net")
+
+# Run daksh as the base image's python module against the mounted host tree.
+# We do NOT swallow the exit code: a real daksh verdict (0/1/2) passes straight
+# through; only a docker-level could-not-start maps to EX_DAKSH_COULDNT_RUN.
+set +e
+docker run --rm \
+  -e GYANAM_DIR=/gyanam \
+  -v "$ROOT":/gyanam -w /gyanam \
+  ${net_args[@]+"${net_args[@]}"} \
+  --entrypoint python "$IMAGE" -m daksh "$@"
+rc=$?
+set -e
+
+# docker run returns 125 (daemon error) / 126 (not executable) / 127 (not found)
+# for "the container could not start" — that is could-not-run, NOT a daksh verdict.
+case "$rc" in
+  125|126|127)
+    _err "daksh container failed to start (docker rc=$rc) — could-not-run, not a verdict."
+    exit "$EX_DAKSH_COULDNT_RUN" ;;
+esac
+exit "$rc"

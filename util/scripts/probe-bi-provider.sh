@@ -41,7 +41,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # env-overridable so the probe also runs from a worktree/CI checkout that has
 # no sibling framework clone; default = the primary workspace this file is in.
 GYANAM_DIR="${GYANAM_DIR:-$(cd "$SCRIPT_DIR/../.." && pwd)}"
-DAKSH="$GYANAM_DIR/framework/lochan/packages/daksh/daksh-cli"
+DAKSH="$GYANAM_DIR/util/scripts/daksh-docker"  # shared shim: host venv or containerized (server has no venv)
 [[ -x "$DAKSH" ]] || { echo "FAIL: daksh-cli not found at $DAKSH" >&2; exit 1; }
 
 APP="${1:-longterm01}"

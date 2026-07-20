@@ -83,7 +83,7 @@ final_summary() {
 
 # ── Test fixtures ──────────────────────────────────────────────────
 
-DAKSH="./framework/lochan/packages/daksh/daksh-cli"
+DAKSH="./util/scripts/daksh-docker"  # shared shim: host venv or containerized (server has no venv)
 TEST_PKG="dravya"           # PoC package with @governance_capability decorations
 TEST_PKG_ROOT="mandi/common/${TEST_PKG}"
 SEALS_FILE="${TEST_PKG_ROOT}/lochan.seals"

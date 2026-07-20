@@ -56,6 +56,9 @@ util/scripts/*
 !util/scripts/screenshots/
 !util/scripts/lgit.sh
 !util/scripts/lgh.sh
+# daksh-docker: the shared containerized-daksh shim — the ONE way scripts invoke
+# daksh (host venv if present, else container). Workspace-canonical infra, tracked.
+!util/scripts/daksh-docker
 !util/scripts/test-lgit.sh
 !util/scripts/test-util-scripts-strict-mode.sh
 !util/scripts/test-verify-app-domains.sh

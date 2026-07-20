@@ -37,7 +37,7 @@
 set -euo pipefail
 
 REPO="/Users/srinivasnukala/Dropbox/Sites/docker/gyanam"
-CLI="framework/lochan/packages/daksh/daksh-cli"
+CLI="util/scripts/daksh-docker"  # shared shim: host venv or containerized (server has no venv)
 
 # --self-test: run the script's OWN python helpers with no app/network, asserting
 # they parse + behave. This catches the #58 class of bug (a brace literal in a
