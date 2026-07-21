@@ -51,8 +51,17 @@ version-pinned** `docker` client (from `download.docker.com`, arch-mapped from
 `dpkg`) next to the `gcc g++ git` dev-toolkit line. Client-in-image + host-socket
 is the canonical DooD recipe (official `docker:cli`, GitLab-runner helper, Jenkins
 docker-CLI agent). Static binary → no glibc coupling; pinned → determinism-ratchet.
-**The `lochan-backend-dev:latest` image must be rebuilt** with this layer before
-the acceptance test.
+**The `lochan-backend-dev:latest` image must be built** with this layer before
+the sidecar can run, via the sanctioned standalone path:
+
+```bash
+util/scripts/build/build-tooling.sh   # builds lochan-backend-dev from the base
+```
+
+(It is a standalone script, NOT a `build-app.sh` flag: the tooling image is `FROM
+lochan-backend-base` and app-independent, so it must not be coupled to any carrier
+app's build/verify — `build-tooling.sh` builds it whenever the base exists and
+asserts the docker CLI is present in the result.)
 
 ## Usage (from the gyanam workspace root)
 

@@ -5,7 +5,8 @@
 #   ./util/scripts/build/build-app.sh <app>              # build + verify
 #   ./util/scripts/build/build-app.sh <app> --no-verify  # build only
 #   ./util/scripts/build/build-app.sh <app> --with-playwright  # also build Tier-3 sidecar
-#   ./util/scripts/build/build-app.sh <app> --with-tooling      # also build the daksh DooD tooling image (lochan-backend-dev)
+#   (for the daksh DooD tooling image, use the standalone build-tooling.sh — it is
+#    app-independent, so it does NOT belong behind this app-build wrapper.)
 #   ./util/scripts/build/build-app.sh <app> --staging    # build the BUILT app images (domain pkg baked) via compose.staging.yml
 #   ./util/scripts/build/build-app.sh <app> --no-cache   # force a clean rebuild (no Docker layer cache) — rebakes edited domain source
 #   ./util/scripts/build/build-app.sh fwprod01           # most common — framework canonical test app
@@ -36,13 +37,11 @@
 #      (docker/03-frontend-playwright.Dockerfile → lochan-frontend-playwright:latest)
 #      per Q-CAPTURE-RUN-BIND-MOUNT-LAYOUT = B founder ratify 2026-05-31.
 #      Skipped by default (production builds don't need capture-run substrate).
-#   5. With --with-tooling: builds the daksh DooD tooling image
-#      (docker/03-backend-dev.Dockerfile → lochan-backend-dev:latest) — the
-#      sanctioned build path for the `daksh install` tooling sidecar
-#      (docker/compose.tooling.yml). This is the wrapper that closes the
-#      raw-`docker build` gap the check-tooling hook blocks (mirrors the
-#      --with-playwright Tier-3 pattern). Skipped by default (DEV/CI-only image;
-#      prod uses lochan-backend-base directly).
+#   Note: the daksh DooD tooling image (lochan-backend-dev) is built by the
+#   STANDALONE build-tooling.sh, NOT a flag here. It is `FROM base` and
+#   app-independent, so coupling it to an app build (which runs first under
+#   `set -e` and aborts this script if the app's `daksh build` fails) meant the
+#   tooling image never built. See build-tooling.sh for the sanctioned path.
 #
 # Why this script exists (per founder 2026-05-21 PM):
 #   - Avoid every session reinventing the `source venv && daksh-cli build` invocation
@@ -70,7 +69,7 @@ VENV_ACTIVATE="$FRAMEWORK_DIR/.venv/bin/activate"
 # ── Arg parsing ──
 if [[ $# -lt 1 ]]; then
   echo "ERROR: app name required" >&2
-  echo "Usage: $0 <app> [--no-verify] [--with-playwright] [--with-tooling] [--staging] [--no-cache]" >&2
+  echo "Usage: $0 <app> [--no-verify] [--with-playwright] [--staging] [--no-cache]" >&2
   echo "Example: $0 fwprod01" >&2
   exit 2
 fi
@@ -78,7 +77,6 @@ fi
 APP="$1"
 VERIFY=1
 WITH_PLAYWRIGHT=0
-WITH_TOOLING=0
 # --staging / --no-cache pass straight through to `daksh build` (see header).
 STAGING=0
 NO_CACHE=0
@@ -87,7 +85,6 @@ while [[ $# -gt 0 ]]; do
   case "$1" in
     --no-verify) VERIFY=0; shift ;;
     --with-playwright) WITH_PLAYWRIGHT=1; shift ;;
-    --with-tooling) WITH_TOOLING=1; shift ;;
     --staging) STAGING=1; shift ;;
     --no-cache) NO_CACHE=1; shift ;;
     *) echo "ERROR: unknown flag $1" >&2; exit 2 ;;
@@ -155,42 +152,6 @@ if [[ $WITH_PLAYWRIGHT -eq 1 ]]; then
   echo "  Usage: docker compose -f apps/$APP/compose.yml \\"
   echo "                        -f $GYANAM_DIR/docker/compose.playwright.yml \\"
   echo "                        run --rm playwright-screenshots"
-fi
-
-# ── daksh DooD tooling image (opt-in; the sanctioned build path) ──────────────
-#
-# Builds lochan-backend-dev:latest from docker/03-backend-dev.Dockerfile when
-# --with-tooling is passed. This is the DEV/CI image that carries daksh[dev] +
-# the static docker CLI (PR #95, Q-S2-13=C) — the tooling sidecar
-# (docker/compose.tooling.yml) that lets `daksh install`'s build/deploy verbs run
-# on a venv-less host. Mirrors the --with-playwright Tier-3 pattern above and
-# closes the raw-`docker build` gap the check-tooling hook blocks (there was no
-# wrapper for the dev image). DEV/CI-only → prod uses lochan-backend-base directly.
-#
-# The dev image is FROM lochan-backend-base, so the base must exist first — the
-# `daksh build` above produces it at Tier ≤1 for the named app. Fail loud if the
-# base is absent rather than emitting a confusing FROM error mid-build.
-if [[ $WITH_TOOLING -eq 1 ]]; then
-  echo "── build-app.sh: building daksh DooD tooling image (lochan-backend-dev) ──"
-  TOOLING_DOCKERFILE="$GYANAM_DIR/docker/03-backend-dev.Dockerfile"
-  if [[ ! -f "$TOOLING_DOCKERFILE" ]]; then
-    echo "  ERROR: tooling Dockerfile not found at $TOOLING_DOCKERFILE" >&2
-    exit 2
-  fi
-  if ! docker image inspect lochan-backend-base:latest >/dev/null 2>&1; then
-    echo "  ERROR: lochan-backend-base:latest absent — the dev image is FROM it." >&2
-    echo "  Build an app first (this wrapper produces the base at Tier ≤1), or run:" >&2
-    echo "    $0 $APP        # builds the base, then re-run with --with-tooling" >&2
-    exit 2
-  fi
-  docker build \
-    -f "$TOOLING_DOCKERFILE" \
-    -t lochan-backend-dev:latest \
-    --pull=false \
-    "$GYANAM_DIR"
-  echo "  ✓ Tooling image built: lochan-backend-dev:latest (daksh[dev] + docker CLI)"
-  echo "  Usage: docker compose -f $GYANAM_DIR/docker/compose.tooling.yml \\"
-  echo "                        run --rm daksh-tooling install --app $APP --silent"
 fi
 
 # ── Verify ──

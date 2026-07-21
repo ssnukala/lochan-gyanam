@@ -123,9 +123,9 @@ if ! docker image inspect "$IMAGE" >/dev/null 2>&1; then
   _err "cannot run daksh: no host venv (import passlib failed) AND image '$IMAGE' absent."
   if _needs_socket "$SUBCMD"; then
     _err "the '$SUBCMD' verb needs the DEV image (docker CLI + daksh[dev])."
-    _err "build it once:  docker build -f docker/03-backend-dev.Dockerfile -t $IMAGE ."
+    _err "build it once (sanctioned path):  util/scripts/build/build-tooling.sh"
   else
-    _err "build the base once:  docker build -f docker/02-backend-base.Dockerfile -t $IMAGE ."
+    _err "build the base once:  util/scripts/build/build-app.sh <app> --no-verify"
   fi
   exit "$EX_DAKSH_COULDNT_RUN"
 fi
