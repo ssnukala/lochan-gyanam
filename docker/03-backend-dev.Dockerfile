@@ -78,8 +78,16 @@ RUN apt-get update && apt-get install -y --no-install-recommends curl ca-certifi
 # other framework package (line 21-23 of backend.base). For dev image we
 # additionally re-install with [dev] extras — pulls in fastmcp + libcst
 # + httpx that don't ship in the prod base.
-COPY framework/lochan/packages/daksh/pyproject.toml /build/daksh/pyproject.toml
-COPY framework/lochan/packages/daksh/backend /build/daksh/backend
+#
+# `daksh`'s pyproject + package both live under `backend/` (pyproject uses
+# `[tool.setuptools.packages.find] where = ["."]`, so pip must run against the
+# directory that holds BOTH pyproject.toml AND the daksh/ package — i.e.
+# `backend/`). Copy that ONE tree and install it directly, exactly as the base
+# image does via install-framework-packages.py → pip install <pkg>/backend. The
+# prior two-COPY split (pyproject to /build/daksh, backend to /build/daksh/backend)
+# never resolved: the source path omitted `backend/` AND the split put pyproject
+# and package in different dirs so `where=["."]` couldn't find the package.
+COPY framework/lochan/packages/daksh/backend /build/daksh
 RUN pip install --no-cache-dir /build/daksh[dev] \
     && rm -rf /build/daksh \
     && find /usr/local/lib/python3.13/site-packages \
