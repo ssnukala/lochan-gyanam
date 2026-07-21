@@ -93,6 +93,15 @@ framework/lochan/.forge-tmp/
 **/*.priv
 **/*.pem
 framework/lochan/keys/publisher.ed25519.priv
+# EXCEPTION: the universal license PUBLIC verify-key is DESIGNED to bake into
+# the base image (muulam package data; the deployed app reads it to verify
+# LICENSE_KEY offline — asymmetric, so a leaked image can only verify, never
+# sign). The blanket **/*.pem above (private-key guard) would otherwise strip
+# it from the build context → every prod app hard-stops INVALID on boot. This
+# narrow re-include ships ONLY the public key dir; the private signing key
+# lives in gitignored .keys-private/ and never enters the context. Mirrors the
+# !**/.env.example precedent above.
+!framework/lochan/packages/muulam/backend/muulam/data/license-keys/*.pem
 
 # Encrypted backups — produced by util/scripts/backup-encrypted.sh.
 # They don't belong in an image even though they're already encrypted —
