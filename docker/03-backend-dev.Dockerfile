@@ -36,6 +36,40 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     gcc g++ git \
     && rm -rf /var/lib/apt/lists/*
 
+# ── docker CLI (client only) — the second half of the DooD tooling sidecar ──
+# The `daksh install` tooling sidecar (docker/compose.tooling.yml) mounts the
+# host docker socket and drives build/db/migrate/seed-demo/verify/deploy by
+# shelling out to the `docker` CLI (daksh.lib.docker_client → subprocess.run
+# (["docker", ...]); _build_orchestrator → `docker build`; deploy_wrap →
+# `docker compose up`; intent_acceptance.live_runner → `docker exec`). The
+# socket mount alone is NOT enough — without a `docker` binary on PATH every
+# verb dies rc=127. This installs the docker CLIENT here; the DAEMON stays on
+# the host (docker-OUTSIDE-of-docker, NOT dind/--privileged). Canonical recipe:
+# official `docker:cli`, GitLab-runner helper, Jenkins docker-CLI agent all ship
+# the client + mount the host socket. Q-S2-13 = C (2026-07-21): static pinned
+# binary over apt-repo plumbing — leaner, no apt key/repo, version pinned per the
+# determinism-ratchet doctrine. DEV/CI-only image → zero prod-image-size impact.
+#
+# Static binary (self-contained Go, no glibc coupling) from download.docker.com;
+# arch mapped from dpkg (arm64→aarch64, amd64→x86_64) so it builds on either.
+# Version pinned; the client negotiates the API version with the host daemon.
+ARG DOCKER_CLI_VERSION=27.5.1
+RUN apt-get update && apt-get install -y --no-install-recommends curl ca-certificates \
+    && case "$(dpkg --print-architecture)" in \
+         arm64) DOCKER_ARCH=aarch64 ;; \
+         amd64) DOCKER_ARCH=x86_64 ;; \
+         *) echo "unsupported arch for docker static CLI: $(dpkg --print-architecture)" >&2; exit 1 ;; \
+       esac \
+    && curl -fsSL "https://download.docker.com/linux/static/stable/${DOCKER_ARCH}/docker-${DOCKER_CLI_VERSION}.tgz" \
+         -o /tmp/docker.tgz \
+    && tar -xzf /tmp/docker.tgz -C /tmp \
+    && install -m 0755 /tmp/docker/docker /usr/local/bin/docker \
+    && rm -rf /tmp/docker /tmp/docker.tgz \
+    && apt-get purge -y curl \
+    && apt-get autoremove -y \
+    && rm -rf /var/lib/apt/lists/* \
+    && docker --version
+
 # Re-install daksh with [dev] extras and strip bloat in a SINGLE layer.
 # Doing the strip in a separate RUN only shadows files (layers are append-only),
 # which wouldn't shrink the image. The combined RUN ensures the deletes

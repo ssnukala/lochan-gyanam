@@ -1,0 +1,100 @@
+# compose.tooling.yml — opt-in daksh tooling sidecar (Docker-outside-of-Docker)
+# for the `daksh install` build/deploy wizard on a venv-less host.
+#
+# WHY THIS EXISTS (Phase 2 of the daksh-install-wizard-SEQUENCED-PLAN):
+#   The `daksh install` wizard's steps 3-7 (build → db → seed → verify → deploy)
+#   run the daksh build/deploy verbs. On a venv-less host (the zero-host-dep
+#   server model — "only docker+git") those verbs must run INSIDE a container.
+#   Every one of them drives the host docker daemon:
+#     build/build-app  → `docker build`            (_build_orchestrator.py:298)
+#     db/migrate       → `docker exec <app>-backend`(lib/docker_client.py:178)
+#     seed-demo        → re-exec `docker exec`      (seed_demo.py:_exec_seed_in_container)
+#     verify           → `docker compose ps` + GET localhost:{published_port} (verify.py:107-130)
+#     deploy           → `docker compose up`        (deploy_wrap.py:245)
+#     intent-acceptance→ `docker exec <app>-backend-1` (intent_acceptance/live_runner.py:52)
+#   So the sidecar's seam is the DOCKER SOCKET, not the app-network (Q-S2-12 = A,
+#   2026-07-21): there is NO "pure app-env" verb — all reach the app THROUGH the
+#   host daemon (or its published port). Hence ONE socket-mounted service, not two.
+#
+# DooD, NOT dind: the docker CLIENT lives in the image (lochan-backend-dev bakes
+#   the static docker CLI — see 03-backend-dev.Dockerfile, Q-S2-13 = C); the
+#   DAEMON stays on the host, reached via the mounted /var/run/docker.sock. No
+#   `--privileged`, no nested daemon. Canonical recipe (official `docker:cli`,
+#   GitLab-runner helper, Jenkins docker-CLI agent): client-in-image + host-socket.
+#
+# Three hard rules (mirrors compose.playwright.yml / compose.test.yml SHAPE):
+#   1. Prod chain never imports this — separate opt-in file; the tooling image
+#      (lochan-backend-DEV) is DEV/CI-only, prod uses lochan-backend-base directly.
+#   2. Sidecar is opt-in via `-f docker/compose.tooling.yml` (profiles: [tooling]).
+#   3. Running app containers are never modified — the sidecar is an EPHEMERAL
+#      sibling that drives the daemon; the app's own containers do the DB work
+#      (daksh `docker exec`s INTO them; it does not attach to the app-network).
+#
+# Usage (any app; run from the gyanam workspace root):
+#
+#   # One wizard verb (build/db/seed-demo/verify/deploy/migrate/intent-acceptance):
+#   APP=longterm01 docker compose \
+#     -f docker/compose.tooling.yml \
+#     run --rm daksh-tooling install --app longterm01 --silent
+#
+#   # Or any individual daksh verb the wizard composes:
+#   APP=longterm01 docker compose -f docker/compose.tooling.yml \
+#     run --rm daksh-tooling build-app longterm01
+#
+# The wizard (daksh install, steps 3-7) invokes these verbs itself; this compose
+# is the vehicle that lets it run on a host with no python venv.
+#
+# Composes-with:
+#   - daksh-install-wizard-SEQUENCED-PLAN.md Phase 2 (the DooD sidecar)
+#   - util/scripts/daksh-docker (the shell shim — same socket-mount + host net
+#     for single-verb host invocation; this compose is the wizard-flow vehicle)
+#   - docker/compose.playwright.yml (opt-in sidecar SHAPE precedent)
+#   - Q-S2-10 = A (DooD sidecar) · Q-S2-12 = A (one socket service) · Q-S2-13 = C
+#     (static docker CLI in the dev image) · host-reach = network_mode: host
+#   - [[feedback-containerized-daksh-is-longterm-right-finish-dont-workaround]] BINDING
+#   - [[no-silent-try-except-fail-loudly-at-boot]] (daksh verbs fail loud; the
+#     daksh-docker shim maps could-not-run to exit 86, never a false verdict)
+
+services:
+
+  daksh-tooling:
+    # DEV/CI image = base + daksh[dev] (evolve/janch/deployer/MCP) + the static
+    # docker CLI (Q-S2-13 = C). NEVER ships to prod (prod uses lochan-backend-base).
+    # Rebuilt by S0 with the docker-CLI layer before the acceptance test.
+    image: lochan-backend-dev:latest
+    profiles: [tooling]
+
+    # ── network_mode: host (Q-S2-13 host-reach ruling) ──────────────────────
+    # `daksh verify` resolves the backend's HOST-PUBLISHED port via
+    # `docker compose ps … PublishedPort` then GETs http://localhost:{port}
+    # (verify.py:107-130). From inside a container `localhost` is the container,
+    # not the host — so the sidecar joins the host network namespace, making its
+    # `localhost` == the host's published ports (zero code change to verify.py).
+    # Q-S2-12 = A removed any app-network need (all verbs go via the socket), so
+    # there is no conflict with host networking.
+    network_mode: host
+
+    volumes:
+      # The docker socket — the DooD seam. daksh shells out to `docker` which
+      # talks to the HOST daemon through this socket (build/exec/compose/ps/port).
+      - /var/run/docker.sock:/var/run/docker.sock
+      # The gyanam workspace tree — daksh reads repos.json / apps/<app> / compose
+      # files and writes generated config from here (same mount the daksh-docker
+      # shim uses: -v $ROOT:/gyanam).
+      - ../:/gyanam
+
+    working_dir: /gyanam
+
+    environment:
+      # daksh resolves the workspace root from GYANAM_DIR (else walks up to
+      # repos.json). Pin it to the mount so resolution is unambiguous.
+      - GYANAM_DIR=/gyanam
+      # The app under install — used by callers that template the app name; the
+      # verb args still carry --app explicitly. Defaults to the canonical target.
+      - APP=${APP:-fwprod01}
+
+    # No default command: this service is always invoked as
+    # `docker compose … run --rm daksh-tooling <daksh-args>`, which appends the
+    # verb + args after the entrypoint (python -m daksh). Mirrors daksh-docker's
+    # `--entrypoint python … -m daksh "$@"`.
+    entrypoint: ["python", "-m", "daksh"]
