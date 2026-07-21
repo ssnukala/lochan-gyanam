@@ -68,10 +68,34 @@ _network_for() {
   case "$1" in
     # App-targeting HTTP — reach the app's published port on the host net (proven).
     api|pw-login|screenshot) echo "host" ;;
+    # DooD install/build/deploy verbs (Q-S2-13 host-reach = network_mode:host,
+    # 2026-07-21). `daksh verify` GETs http://localhost:{published_port}
+    # (verify.py:107-130) — from inside a container `localhost` must be the HOST,
+    # so these join the host net (== compose network_mode: host). The rest drive
+    # the daemon via the socket (below) and don't care about the net, but `host`
+    # is harmless + uniform for the wizard cluster. `db`+`schema-sync` are the
+    # wizard step-4 "db bring-up" verbs (DatabaseService → DockerClient.exec_cmd,
+    # database.py:106/123); `migrate`/`migrate-db` likewise.
+    install|build|build-app|db|migrate|migrate-db|schema-sync|seed-demo|verify|deploy|push|intent-acceptance) echo "host" ;;
     # Resolves shared-ollama by service name — needs the shared-ai network.
     chat)                    echo "shared-ai" ;;
     # Pure build/analysis over the mounted tree — no network needed.
     *)                       echo "none" ;;
+  esac
+}
+
+# --- Per-subcommand docker-socket need (DooD) ---------------------------------
+# The install/build/deploy wizard verbs drive the HOST docker daemon: they shell
+# out to `docker build`/`compose`/`exec`/`ps`/`port` (daksh.lib.docker_client,
+# _build_orchestrator, deploy_wrap, intent_acceptance.live_runner). To do that
+# from inside the container they need (a) the host socket mounted and (b) a
+# `docker` CLI on PATH — which only the DEV image carries (Q-S2-13 = C static
+# CLI in 03-backend-dev.Dockerfile). Pure api/chat/analysis verbs do NOT get the
+# socket (least-privilege — don't hand the daemon to a verb that never uses it).
+_needs_socket() {
+  case "$1" in
+    install|build|build-app|db|migrate|migrate-db|schema-sync|seed-demo|verify|deploy|push|intent-acceptance) return 0 ;;
+    *) return 1 ;;
   esac
 }
 
@@ -85,10 +109,24 @@ if [ -x "$HOST_DAKSH" ] && python3 -c 'import passlib' >/dev/null 2>&1; then
 fi
 
 # --- Path 2: containerized daksh (server / venv-less host) --------------------
-IMAGE="${DAKSH_DOCKER_IMAGE:-lochan-backend-base:latest}"
+# DooD verbs need the DEV image (it carries the docker CLI — Q-S2-13 = C); all
+# other verbs run fine on the leaner base. An explicit DAKSH_DOCKER_IMAGE always
+# wins. Default per verb: dev image for socket verbs, base otherwise.
+if [ -n "${DAKSH_DOCKER_IMAGE:-}" ]; then
+  IMAGE="$DAKSH_DOCKER_IMAGE"
+elif _needs_socket "$SUBCMD"; then
+  IMAGE="lochan-backend-dev:latest"
+else
+  IMAGE="lochan-backend-base:latest"
+fi
 if ! docker image inspect "$IMAGE" >/dev/null 2>&1; then
-  _err "cannot run daksh: no host venv (import passlib failed) AND base image '$IMAGE' absent."
-  _err "build the base once:  docker build -f docker/02-backend-base.Dockerfile -t $IMAGE ."
+  _err "cannot run daksh: no host venv (import passlib failed) AND image '$IMAGE' absent."
+  if _needs_socket "$SUBCMD"; then
+    _err "the '$SUBCMD' verb needs the DEV image (docker CLI + daksh[dev])."
+    _err "build it once:  docker build -f docker/03-backend-dev.Dockerfile -t $IMAGE ."
+  else
+    _err "build the base once:  docker build -f docker/02-backend-base.Dockerfile -t $IMAGE ."
+  fi
   exit "$EX_DAKSH_COULDNT_RUN"
 fi
 
@@ -96,7 +134,20 @@ net="$(_network_for "$SUBCMD")"
 net_args=()
 [ "$net" != "none" ] && net_args=(--network "$net")
 
-# Run daksh as the base image's python module against the mounted host tree.
+# DooD socket mount — only for verbs that drive the host daemon (least-privilege).
+# Fail loud if the verb needs the socket but it isn't present on this host, rather
+# than letting the verb die with a cryptic rc=127/connection error mid-run.
+socket_args=()
+if _needs_socket "$SUBCMD"; then
+  if [ ! -S /var/run/docker.sock ]; then
+    _err "the '$SUBCMD' verb needs the docker socket, but /var/run/docker.sock is absent."
+    _err "run on a host with the docker daemon socket available (DooD)."
+    exit "$EX_DAKSH_COULDNT_RUN"
+  fi
+  socket_args=(-v /var/run/docker.sock:/var/run/docker.sock)
+fi
+
+# Run daksh as the image's python module against the mounted host tree.
 # We do NOT swallow the exit code: a real daksh verdict (0/1/2) passes straight
 # through; only a docker-level could-not-start maps to EX_DAKSH_COULDNT_RUN.
 set +e
@@ -104,6 +155,7 @@ docker run --rm \
   -e GYANAM_DIR=/gyanam \
   -v "$ROOT":/gyanam -w /gyanam \
   ${net_args[@]+"${net_args[@]}"} \
+  ${socket_args[@]+"${socket_args[@]}"} \
   --entrypoint python "$IMAGE" -m daksh "$@"
 rc=$?
 set -e
