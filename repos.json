@@ -44,8 +44,10 @@
     { "path": "mandi/domain/longterm",    "url": "https://github.com/ssnukala/lochan-longterm.git" },
     { "path": "mandi/domain/mediaserver", "url": "https://github.com/ssnukala/lochan-mediaserver.git" },
     { "path": "mandi/domain/pestpro",     "url": "https://github.com/ssnukala/lochan-pestpro.git" },
+    { "path": "mandi/domain/prapti",      "url": "https://github.com/ssnukala/lochan-prapti.git" },
     { "path": "mandi/domain/realtor",     "url": "https://github.com/ssnukala/lochan-lokavit.git" },
     { "path": "mandi/domain/regsevak",    "url": "https://github.com/ssnukala/lochan-regsevak.git" },
+    { "path": "mandi/domain/sanchalak",   "url": "https://github.com/ssnukala/lochan-sanchalak.git" },
     { "path": "mandi/domain/vyaparam",    "url": "https://github.com/ssnukala/lochan-vyaparam.git" }
   ]
 }
