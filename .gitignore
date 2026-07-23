@@ -108,6 +108,14 @@ logs/
 .daksh/cache/
 .janch/
 
+# ── Daksh schema-snapshot store (build-time drift baseline; regenerated) ──
+# Per-package schema diff baselines written by daksh post-build
+# (daksh/migrations/snapshot.py). Build-time only, not read at runtime;
+# regenerates on each build. Untracked = green. See fresh-budget brief
+# lochan/research/2026-07-22-schema-snapshot-store-cleanup-brief.md
+# (rename + tracked-baseline design pending).
+.lochan-meta/
+
 # ── Generated frontend assets ─────────────────────────────────────────────
 # The mandi catalog moved 2026-05-22 to its canonical location inside
 # the mandi package itself:
